@@ -21,7 +21,7 @@ program main
             call std_atm_SI(real(i),Z,T,P,rho,a,mu)
             g = gravity_SI(real(i))
         end do
-        write(io_unit,'(7ES25.11)') real(i),Z,T,P,rho,a,mu,g
+        write(io_unit,'(7ES25.11)') real(i),Z,T,P,rho,a,mu,g ! the 7ES25.11 is for 7 scientific notation numbers, each 25 characters wide with 11 after the decimal
     end do
     call cpu_time(end_time)
     print *, 'SI time total [sec]:          ', end_time - start_time

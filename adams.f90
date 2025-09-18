@@ -1,6 +1,9 @@
 module adams_m
     implicit none
     real, parameter :: PI = 3.141592653589793
+    real, parameter :: identity(3,3) = reshape([ 1.0, 0.0, 0.0, &
+                                             0.0, 1.0, 0.0, &
+                                             0.0, 0.0, 1.0 ], [3,3])
     real, parameter :: TOLERANCE = 1.0e-12
     real, parameter :: g_ssl = 9.80665 ! [m*s^-2] this is the gravitational acceleration at sea level
     real, parameter :: g_ssl_English = g_ssl/0.3048 ! [ft*s^-2] this is the gravitational acceleration at sea level
@@ -31,16 +34,24 @@ module adams_m
                        invR_T32 = -g_ssl/(R*T_prime32), invR_T47 = -g_ssl/(R*T_47), invR_T52 = -g_ssl/(R*T_prime52), & 
                        invR_T61 = -g_ssl/(R*T_prime61), invR_T79 = -g_ssl/(R*T_79)
 
-    !!!! Parameters for RK4 stuff
+    !!!! Parameters for sim_m
     real, parameter :: delta_t = 0.01
-    real, parameter :: t_stop = 2500.0
+    real, parameter :: t_stop = 10.0
     real, parameter :: delta_t_over_2 = delta_t/2.0
     real, parameter :: delta_t_over_6 = delta_t/6.0
     Integer, parameter :: runge_kutta_array_size = int(t_stop/delta_t) + 1
     real, parameter :: t_0 = 0.0
-    real, dimension(3), parameter :: state0 = [0.0,0.0,0.0] ! state0 has 
-    Integer, parameter :: n = size(state0)
-
+    real, parameter :: u_0 = 50.0 ! [ft/s]
+    real, parameter :: v_0 = 0.0
+    real, parameter :: w_0 = 0.0
+    real, parameter :: p_0 = 0.0 
+    real, parameter :: q_0 = 0.0 
+    real, parameter :: r_0 = 0.0 
+    real, parameter :: x_0 = 0.0 
+    real, parameter :: y_0 = 0.0 
+    real, parameter :: z_0 = -200.0 ! [ft] up is negative in earth fixed coordinates
+    real, dimension(3), parameter :: eul0 = [0.0,0.0,0.0] ! [phi, theta, psi]
+    Integer, parameter :: n = 13
 contains
 
 !!! ATTITUDE DESCRIPTORS (EULER, QUATERNIONS) !!!
@@ -202,6 +213,7 @@ subroutine std_atm_SI(H, Z, T, P, rho, a, mu)
     real, intent(inout) ::  Z, T, P, rho, a, mu
     ! first calculate Geopotential Alt
     Z = R_EZ*H/(R_EZ+H)
+    Z = max(Z, 0.0)
     ! now calculate the temperature and pressure at (Z) depending on what range H is in 
     if (Z < 11000.0) then
         T = T0 + T_prime0*Z
