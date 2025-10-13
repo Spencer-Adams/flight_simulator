@@ -1,0 +1,72 @@
+{
+    "simulation": {
+        "time_step[sec]": 0.01,
+        "weight[lbf]": 0.0697,
+        "long_ref[ft]": 2.3,
+        "lat_ref[ft]": 2.3,
+        "sref[ft2]": 0.000218,
+        "final_time[sec]": 20.0
+    },
+    "initial": {
+        "is_straight_fletchings" : true,
+        "time[sec]": 0.0,
+        "u_body_fixed[ft/s]" : 210.0,
+        "v_body_fixed[ft/s]" : 0.0,
+        "w_body_fixed[ft/s]" : 0.0,
+        "p_body_fixed[deg/s]": 0.0,
+        "q_body_fixed[deg/s]": 0.0,
+        "r_body_fixed[deg/s]": 0.0,
+        "x_earth_fixed[ft]": 0.0,
+        "y_earth_fixed[ft]": 0.0,
+        "z_earth_fixed[ft]": 5.0,
+        "bank_angle[deg]": 0.0,
+        "elevation_angle[deg]": 5.0,
+        "azimuth_angle[deg]": 0.0
+    },
+    "aero_coefficients": {
+        "CL0" : 1.0,
+        "CLa" : 1.0, 
+        "CLahat" : 1.0, 
+        "CLqbar": 1.0, 
+        "CLde": 1.0,
+
+        "CD0": 1.0, 
+        "CD1": 1.0, 
+        "CD2": 1.0, 
+        "CDS": 1.0, 
+        "CDqbar": 1.0, 
+        "CDaqbar": 1.0, 
+        "CDde": 1.0, 
+        "CDade": 1.0, 
+        "CDde2": 1.0,
+
+        "CSb": 1.0, 
+        "CSpbar": 1.0, 
+        "CSapbar": 1.0, 
+        "CSrbar": 1.0, 
+        "CSda": 1.0, 
+        "CSdr": 1.0,
+
+        "Clb": 1.0, 
+        "Clpbar": 1.0, 
+        "Clrbar": 1.0, 
+        "Clarbar": 1.0, 
+        "Clda": 1.0, 
+        "Cldr": 1.0,
+
+        "Cm0": 1.0, 
+        "Cma": 1.0, 
+        "Cmqbar": 1.0, 
+        "Cmahat": 1.0, 
+        "Cmde": 1.0,
+        
+        "Cnb": 1.0, 
+        "Cnpbar": 1.0, 
+        "Cnapbar": 1.0, 
+        "Cnrbar": 1.0, 
+        "Cnda": 1.0, 
+        "Cnada": 1.0, 
+        "Cndr": 1.0 
+    }
+}
+

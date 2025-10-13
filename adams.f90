@@ -34,24 +34,6 @@ module adams_m
                        invR_T32 = -g_ssl/(R*T_prime32), invR_T47 = -g_ssl/(R*T_47), invR_T52 = -g_ssl/(R*T_prime52), & 
                        invR_T61 = -g_ssl/(R*T_prime61), invR_T79 = -g_ssl/(R*T_79)
 
-    !!!! Parameters for sim_m
-    real, parameter :: delta_t = 0.01
-    real, parameter :: t_stop = 10.0
-    real, parameter :: delta_t_over_2 = delta_t/2.0
-    real, parameter :: delta_t_over_6 = delta_t/6.0
-    Integer, parameter :: runge_kutta_array_size = int(t_stop/delta_t) + 1
-    real, parameter :: t_0 = 0.0
-    real, parameter :: u_0 = 50.0 ! [ft/s]
-    real, parameter :: v_0 = 0.0
-    real, parameter :: w_0 = 0.0
-    real, parameter :: p_0 = 0.0 
-    real, parameter :: q_0 = 0.0 
-    real, parameter :: r_0 = 0.0 
-    real, parameter :: x_0 = 0.0 
-    real, parameter :: y_0 = 0.0 
-    real, parameter :: z_0 = -200.0 ! [ft] up is negative in earth fixed coordinates
-    real, dimension(3), parameter :: eul0 = [0.0,0.0,0.0] ! [phi, theta, psi]
-    Integer, parameter :: n = 13
 contains
 
 !!! ATTITUDE DESCRIPTORS (EULER, QUATERNIONS) !!!
@@ -115,13 +97,13 @@ function quat_dependent_to_base(v2, quat) result(v1)
     ex = quat(2)
     ey = quat(3)
     ez = quat(4)
-    t0 = vx*ex + vy* ey + vz*ez 
-    tx =  vx*e0 - vy* ez + vz* ey 
-    ty =  vx* ez + vy* e0 - vz* ex 
-    tz = vx* ey - vy* ex + vz* e0
-    v1(1) = e0 * tx + ex *t0 + ey* tz - ez *ty 
-    v1(2) = e0 * ty - ex *tz + ey* t0 + ez *tx 
-    v1(3) = e0 *tz + ex *ty - ey *tx + ez *t0
+    t0 = vx*ex + vy*ey + vz*ez 
+    tx =  vx*e0 - vy*ez + vz*ey 
+    ty =  vx*ez + vy*e0 - vz*ex 
+    tz = -vx*ey + vy*ex + vz*e0
+    v1(1) = e0*tx + ex*t0 + ey*tz - ez*ty 
+    v1(2) = e0*ty - ex*tz + ey*t0 + ez*tx 
+    v1(3) = e0*tz + ex*ty - ey*tx + ez*t0
 end function quat_dependent_to_base
 
 subroutine quat_norm(quat)

@@ -1,0 +1,27 @@
+{
+    "simulation": {
+        "time_step[sec]": 0.01,
+        "weight[lbf]": 0.0697,
+        "long_ref_length[ft]": 2.3,
+        "lat_ref_length[ft]": 2.3,
+        "ref_area[ft2]": 0.000218,
+        "final_time[sec]": 20.0
+    },
+    "initial": {
+        "is_straight_fletchings" : true,
+        "time[sec]": 0.0,
+        "u_body_fixed[ft/s]" : 210.0,
+        "v_body_fixed[ft/s]" : 0.0,
+        "w_body_fixed[ft/s]" : 0.0,
+        "p_body_fixed[deg/s]": 0.0,
+        "q_body_fixed[deg/s]": 0.0,
+        "r_body_fixed[deg/s]": 0.0,
+        "x_earth_fixed[ft]": 0.0,
+        "y_earth_fixed[ft]": 0.0,
+        "z_earth_fixed[ft]": 5.0,
+        "bank_angle[deg]": 0.0,
+        "elevation_angle[deg]": 5.0,
+        "azimuth_angle[deg]": 0.0
+    }
+}
+

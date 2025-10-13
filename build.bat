@@ -1,2 +1,2 @@
 
-gfortran -fdefault-real-8 -O2 -Wall adams.f90 sphere.f90 main.f90 -o sphere.exe
+gfortran -fdefault-real-8 -O2 json.f90 jsonx.f90 adams.f90 sim.f90 main.f90 -o sim.exe

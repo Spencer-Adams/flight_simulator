@@ -1,0 +1,10 @@
+{
+    "simulation": {
+        "time_step[sec]": 0.01
+    },
+    "initial": {
+        "airspeed[ft/s]": 2110,
+        "altitude[ft]": 5.0,
+        "elevation_angle[deg]": 5.0
+    }
+}
