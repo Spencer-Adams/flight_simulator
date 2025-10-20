@@ -19,7 +19,7 @@ module sim_m
     logical :: rk4_verbose
     type(json_value), pointer :: j_main
     ! aero coefficients 
-    real, allocatable :: aero_ref_location(:), eul0(:), angular_rates(:) 
+    real, allocatable :: aero_ref_location(:)
     real :: sref, long_ref, lat_ref
     real :: CL0, CLa, CLahat, CLqbar, CLde
     real :: CDL0, CDL1, CDL2, CDS2, CDqbar, CDaqbar, CDde, CDade, CDde2
@@ -31,6 +31,7 @@ module sim_m
     real :: weight !! might switch this out for more general stuff.
     real ::  t, u_0, v_0, w_0, p_0, q_0, r_0, x_0, y_0, z_0
     real :: dt, tf, delta_t_over_2, delta_t_over_6
+    real, dimension(3) :: eul0 
     integer :: n
     contains
     ! end subroutine simulation_main
@@ -269,17 +270,19 @@ module sim_m
         y_init(1) = V_initial*cos(alpha_initial)*cos(beta_initial)
         y_init(2) = V_initial*sin(beta_initial)
         y_init(3) = V_initial*sin(alpha_initial)*cos(beta_initial)
-        call jsonx_get(j_main, "initial.angular_rates[deg/s]", angular_rates,0.0,3)
-        y_init(4:6) = angular_rates * PI/180.0
-        ! call jsonx_get(j_main, "initial.p[deg/s]", y_init(4))
-        ! call jsonx_get(j_main, "initial.q[deg/s]", y_init(5))
-        ! call jsonx_get(j_main, "initial.r[deg/s]", y_init(6))
-        ! y_init(4) = y_init(4) * PI/180.0 
-        ! y_init(5) = y_init(5) * PI/180.0 
-        ! y_init(6) = y_init(6) * PI/180.0
+        call jsonx_get(j_main, "initial.p[deg/s]", y_init(4))
+        call jsonx_get(j_main, "initial.q[deg/s]", y_init(5))
+        call jsonx_get(j_main, "initial.r[deg/s]", y_init(6))
+        y_init(4) = y_init(4) * PI/180.0 
+        y_init(5) = y_init(5) * PI/180.0 
+        y_init(6) = y_init(6) * PI/180.0
         call jsonx_get(j_main, "initial.altitude[ft]", y_init(9))
         y_init(9) = - y_init(9)
-        call jsonx_get(j_main, "initial.Euler_angles[deg]", eul0,0.0,3)
+
+        eul0 = 0.0
+        call jsonx_get(j_main, "initial.bank_angle[deg]", eul0(1))
+        call jsonx_get(j_main, "initial.elevation_angle[deg]", eul0(2))
+        call jsonx_get(j_main, "initial.heading_angle[deg]", eul0(3))
         eul0 = eul0*PI/180.0
         y_init(10:13) = euler_to_quat(eul0)
         call jsonx_get(j_main, "initial.aileron[deg]", controls(1))
