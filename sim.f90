@@ -1,6 +1,7 @@
 module sim_m
     use adams_m
     use jsonx_m
+    use linalg_mod
     use micro_time_m
     implicit none
     ! Variables within sim_m
@@ -15,11 +16,16 @@ module sim_m
     real :: y_init(13)
     real :: controls(4)
     real :: V_initial, alpha_initial, beta_initial
-    real :: rho0
-    logical :: rk4_verbose
+    real :: rho0,Z_temp,T_temp,P_temp,a_temp,mu_temp
+    real :: trim_state(13)
+    logical :: rk4_verbose, is_trim_sideslip_angle
+    real :: trim_elevation_angle, trim_sideslip_angle, trim_bank_angle, trim_azimuth_angle, p_wind
     type(json_value), pointer :: j_main
     ! aero coefficients 
     real, allocatable :: aero_ref_location(:), eul0(:), angular_rates(:) 
+    character(len=:),allocatable :: init_type, trim_type, is_bank_or_beta_for_shss
+    real :: finite_diff_step, relax_factor, newton_tol
+    real :: trim_array(9)
     real :: sref, long_ref, lat_ref
     real :: CL0, CLa, CLahat, CLqbar, CLde
     real :: CDL0, CDL1, CDL2, CDS2, CDqbar, CDaqbar, CDde, CDade, CDde2
@@ -31,20 +37,20 @@ module sim_m
     real :: weight !! might switch this out for more general stuff.
     real ::  t, u_0, v_0, w_0, p_0, q_0, r_0, x_0, y_0, z_0
     real :: dt, tf, delta_t_over_2, delta_t_over_6
-    integer :: n
+    integer :: n, newton_max_iter
     contains
     ! end subroutine simulation_main
     subroutine run()
         implicit none 
         real :: y(13), y1(13)
-        real :: Z_temp, P_temp, T_temp, a_temp, mu_temp
+        ! real :: Z_temp, P_temp, T_temp, a_temp, mu_temp
         real :: cpu_start_time, cpu_end_time, time1, time2, actual_time, integrated_time
         integer :: io_unit
         logical :: real_time
         delta_t_over_2 = dt/2.0
         delta_t_over_6 = dt/6.0
         n = 13
-        call std_atm_English(0.0,Z_temp,T_temp,P_temp,rho0,a_temp,mu_temp)
+        ! call std_atm_English(0.0,Z_temp,T_temp,P_temp,rho0,a_temp,mu_temp)
         ! initial conditions 
         t = 0.0
         y = y_init
@@ -166,8 +172,6 @@ module sim_m
         ex = state(11)
         ey = state(12)
         ez = state(13)
-        ! write(*,*) "State Vector Coming In"
-        ! write(*,*) State
         gravity = gravity_English(-z)
         call pseudo_aero(state)
         rot_and_inertia_temp = & 
@@ -198,6 +202,9 @@ module sim_m
         character(100), intent(in) :: filename
         ! type2, intent(out) ::  arg2
         ! call get_command_argument(1,filename)
+        call std_atm_English(0.0,Z_temp,T_temp,P_temp,rho0,a_temp,mu_temp)
+
+
         call jsonx_load(filename,j_main)
         ! simulation
         call jsonx_get(j_main, "simulation.time_step[sec]", dt, 0.0)
@@ -259,36 +266,302 @@ module sim_m
         call jsonx_get(j_main, "vehicle.aerodynamics.coefficients.Cn.alpha_aileron", Cnada)
         call jsonx_get(j_main, "vehicle.aerodynamics.coefficients.Cn.rudder", Cndr)
         ! initial conditions
+        call mass_inertia() ! computes mass, inertia, and gyroscopic properties of a thing which is weighed at a geopotential altitude of exactly zero. 
         y_init = 0.0
         call jsonx_get(j_main, "initial.time[sec]", t, 0.0)
         call jsonx_get(j_main, "initial.airspeed[ft/sec]", V_initial)
-        call jsonx_get(j_main, "initial.angle_of_attack[deg]", alpha_initial)
-        alpha_initial = alpha_initial * PI/180.0
-        call jsonx_get(j_main, "initial.sideslip_angle[deg]", beta_initial)
-        beta_initial = beta_initial * PI/180.0
-        y_init(1) = V_initial*cos(alpha_initial)*cos(beta_initial)
-        y_init(2) = V_initial*sin(beta_initial)
-        y_init(3) = V_initial*sin(alpha_initial)*cos(beta_initial)
-        call jsonx_get(j_main, "initial.angular_rates[deg/s]", angular_rates,0.0,3)
-        y_init(4:6) = angular_rates * PI/180.0
-        ! call jsonx_get(j_main, "initial.p[deg/s]", y_init(4))
-        ! call jsonx_get(j_main, "initial.q[deg/s]", y_init(5))
-        ! call jsonx_get(j_main, "initial.r[deg/s]", y_init(6))
-        ! y_init(4) = y_init(4) * PI/180.0 
-        ! y_init(5) = y_init(5) * PI/180.0 
-        ! y_init(6) = y_init(6) * PI/180.0
         call jsonx_get(j_main, "initial.altitude[ft]", y_init(9))
         y_init(9) = - y_init(9)
         call jsonx_get(j_main, "initial.Euler_angles[deg]", eul0,0.0,3)
         eul0 = eul0*PI/180.0
         y_init(10:13) = euler_to_quat(eul0)
-        call jsonx_get(j_main, "initial.aileron[deg]", controls(1))
-        call jsonx_get(j_main, "initial.elevator[deg]", controls(2))
-        call jsonx_get(j_main, "initial.rudder[deg]", controls(3))
-        call jsonx_get(j_main, "initial.throttle", controls(4))
-        controls(1:3) = controls(1:3)*PI/180.0
-        call mass_inertia() ! computes mass, inertia, and gyroscopic properties of a thing which is weighed at a geopotential altitude of exactly zero. 
+        call jsonx_get(j_main, "initial.type", init_type)
+        is_bank_or_beta_for_shss = "bank"
+        if (init_type=="state") then
+            call jsonx_get(j_main, "initial.state.angle_of_attack[deg]", alpha_initial)
+            alpha_initial = alpha_initial * PI/180.0
+            call jsonx_get(j_main, "initial.state.sideslip_angle[deg]", beta_initial)
+            beta_initial = beta_initial * PI/180.0
+            y_init(1) = V_initial*cos(alpha_initial)*cos(beta_initial)
+            y_init(2) = V_initial*sin(beta_initial)
+            y_init(3) = V_initial*sin(alpha_initial)*cos(beta_initial)
+            call jsonx_get(j_main, "initial.state.angular_rates[deg/s]", angular_rates,0.0,3)
+            y_init(4:6) = angular_rates * PI/180.0
+            call jsonx_get(j_main, "initial.state.aileron[deg]", controls(1))
+            call jsonx_get(j_main, "initial.state.elevator[deg]", controls(2))
+            call jsonx_get(j_main, "initial.state.rudder[deg]", controls(3))
+            call jsonx_get(j_main, "initial.state.throttle", controls(4))
+            controls(1:3) = controls(1:3)*PI/180.0
+        else 
+            call jsonx_get(j_main, "initial.trim.type", trim_type)
+            call jsonx_get(j_main, "initial.trim.solver.finite_difference_step_size", finite_diff_step)
+            call jsonx_get(j_main, "initial.trim.solver.relaxation_factor", relax_factor)
+            call jsonx_get(j_main, "initial.trim.solver.tolerance", newton_tol)
+            call jsonx_get(j_main, "initial.trim.solver.max_iterations", newton_max_iter)
+            trim_elevation_angle = 0.0
+            trim_bank_angle = 0.0
+            trim_sideslip_angle = 0.0
+            p_wind = 0.0
+            trim_azimuth_angle = eul0(3)
+            is_trim_sideslip_angle = .false.
+            if (trim_type == "sct") then
+                call jsonx_get(j_main, "initial.trim.type_sct.elevation_angle[deg]", trim_elevation_angle)
+                call jsonx_get(j_main, "initial.trim.type_sct.bank_angle[deg]", trim_bank_angle)
+            else if (trim_type == "shss") then
+                call jsonx_get(j_main, "initial.trim.type_shss.elevation_angle[deg]", trim_elevation_angle)
+                call jsonx_get(j_main, "initial.trim.type_shss.bank_or_beta", is_bank_or_beta_for_shss)
+                if (is_bank_or_beta_for_shss == "bank") then 
+                    call jsonx_get(j_main, "initial.trim.type_shss.bank.bank_angle[deg]", trim_bank_angle)
+                else if (is_bank_or_beta_for_shss == "beta") then 
+                    is_trim_sideslip_angle = .true.
+                    call jsonx_get(j_main, "initial.trim.type_shss.beta.sideslip_angle[deg]", trim_sideslip_angle)
+                end if 
+            else if (trim_type == "vbr") then 
+                call jsonx_get(j_main, "initial.trim.type_vbr.p_wind[deg/s]", p_wind)
+                call jsonx_get(j_main, "initial.trim.type_vbr.elevation_angle[deg]", trim_elevation_angle)
+                call jsonx_get(j_main, "initial.trim.type_vbr.bank_angle[deg]", trim_bank_angle)
+            end if 
+            trim_elevation_angle = trim_elevation_angle*PI/180.0
+            trim_bank_angle = trim_bank_angle*PI/180.0
+            trim_sideslip_angle = trim_sideslip_angle*PI/180.0
+            p_wind = p_wind*PI/180.0
+            
+            ! call jsonx_get(j_main, "initial.trim.elevation_angle[deg]", trim_elevation_angle)
+            ! call jsonx_get(j_main, "initial.trim.bank_angle[deg]", trim_bank_angle)
+            ! call jsonx_get(j_main, "initial.trim.sideslip_angle[deg]", trim_sideslip_angle)
+            alpha_initial = 0.0
+            beta_initial = 0.0
+            write(*,*) 
+            write(*,*) 
+            write(*,*) "alpha", alpha_initial
+            write(*,*) "beta", beta_initial
+            write(*,*) "x[ft]", y_init(7)
+            write(*,*) "y[ft]", y_init(8)
+            write(*,*) "altitude[ft]", y_init(9)
+            write(*,*) "trim_type ", trim_type
+            write(*,*) "is_bank_or_beta_for_shss ", is_bank_or_beta_for_shss
+            write(*,*) "trim_bank_angle", trim_bank_angle
+            write(*,*) "trim_elevation_angle", trim_elevation_angle
+            write(*,*) "trim_azimuth_angle", trim_azimuth_angle
+            write(*,*) 
+            write(*,*) 
+
+
+            trim_array = trim_algorithm(y_init(9), trim_type, newton_tol)
+            write(*,*) "alpha[deg]", trim_array(1)*180.0/PI
+            write(*,*) "beta", trim_array(2)*180.0/PI
+            write(*,*) "p", trim_array(3)*180.0/PI
+            write(*,*) "q", trim_array(4)*180.0/PI
+            write(*,*) "r", trim_array(5)*180.0/PI
+            write(*,*) "da", trim_array(6)*180.0/PI
+            write(*,*) "de", trim_array(7)*180.0/PI
+            write(*,*) "dr", trim_array(8)*180.0/PI
+            write(*,*) "tau", trim_array(9)
+
+            alpha_initial = trim_array(1)
+            beta_initial = trim_array(2)
+            y_init(1) = V_initial*cos(alpha_initial)*cos(beta_initial)
+            y_init(2) = V_initial*sin(beta_initial)
+            y_init(3) = V_initial*sin(alpha_initial)*cos(beta_initial)
+            y_init(4:6) = trim_array(3:5)
+            y_init(10:13) = euler_to_quat(eul0)
+            controls(1:4) = trim_array(6:9) 
+        end if
+        write(*,*) 
+        write(*,*) 
+        write(*,*) 
+        ! write(*,*) "y_init"
+        ! write(*,*) y_init
     end subroutine init
+
+    function trim_algorithm(H_altitude, trim_type, newton_tol) result(trim_result)
+        implicit none
+        real, intent(in) :: H_altitude, newton_tol
+        character, intent(in) :: trim_type
+        real :: trim_result(9)
+        real :: alpha, beta, p, q, r, da, de, dr, tau,x,y,z
+        real :: pos(3), quat_orientation(4)
+        real :: phi, theta, psi
+        real :: current_error
+        real :: u,v,w, sct_pqr_coeff
+        real, allocatable :: DeltaG(:)
+        real :: residual(6)
+        real :: jacobian(6,6)
+        real :: gravity 
+        real :: newton_input(6)
+        gravity = gravity_English(H_altitude)
+        ! sct_pqr_coeff = gravity*sin(phi)*cos(theta)/(u*cos(theta)*cos(phi)+w*sin(theta))
+        alpha = 0.0
+        allocate(DeltaG(6))
+        beta = 0.0
+        p = 0.0
+        q = 0.0
+        r = 0.0
+        x = 0.0
+        y = 0.0
+        z = H_altitude
+        da = 0.0
+        de = 0.0 
+        dr = 0.0
+        tau = 0.0
+        if (trim_type == "shss") then
+            if (is_trim_sideslip_angle) then 
+                beta = trim_sideslip_angle
+            else 
+                phi = trim_bank_angle
+            end if 
+        else
+            phi = trim_bank_angle
+        end if 
+        current_error = 100.0
+        if (trim_type == "shss" .and. is_trim_sideslip_angle) then
+                newton_input = [alpha, phi, da, de, dr, tau]
+            else
+                newton_input = [alpha, beta, da, de, dr, tau]
+            end if
+        do while(current_error > newton_tol)
+            ! u = V_initial*cos(alpha)*cos(beta)
+            ! v = V_initial*sin(beta)
+            ! w = V_initial*sin(alpha)*cos(beta)
+            ! if (trim_type == "sct") then
+            !     p = sct_pqr_coeff*(-sin(theta))
+            !     q = sct_pqr_coeff*(sin(phi)*cos(theta))
+            !     r = sct_pqr_coeff*(cos(phi)*cos(theta))
+            ! else if (trim_type == "vbr") then
+            !     p = (p_wind/V_initial)*u
+            !     q = (p_wind/V_initial)*v
+            !     r = (p_wind/V_initial)*w
+            ! end if 
+            ! write(*,*) 
+            ! write(*,*) 
+            ! write(*,*) "newton_input", newton_input
+            ! write(*,*) 
+            ! write(*,*) 
+            residual = calc_residual(newton_input)
+            ! write(*,*) "residual"
+            ! write(*,*) residual
+            jacobian = create_jacobian(newton_input, finite_diff_step)
+            ! write(*,*) "jacobian"
+            ! write(*,*) jacobian
+            call lu_solve(6,jacobian,residual,DeltaG)
+            ! write(*,*) "DeltaG"
+            ! write(*,*) DeltaG
+            newton_input = newton_input - relax_factor*DeltaG
+            residual = calc_residual(newton_input)
+            current_error = maxval(abs(residual))
+            alpha = newton_input(1)
+            beta = newton_input(2)
+            da = newton_input(3)
+            de = newton_input(4)
+            dr = newton_input(5)
+            tau = newton_input(6)
+
+            ! write(*,*) "alpha", alpha
+            ! write(*,*) "beta", beta
+            ! write(*,*) "p", da 
+            ! write(*,*) "q", de 
+            ! write(*,*) "r", dr
+            ! write(*,*) "da", tau 
+            ! write(*,*) "de", trim_array(7)
+            ! write(*,*) "dr", trim_array(8)
+            ! write(*,*) "tau", trim_array(9)
+            trim_result = [alpha, beta, p, q, r, da, de, dr, tau]
+        end do 
+    end function trim_algorithm
+
+    function create_jacobian(states, step_size) result(jacobian) ! states should be six elements long (alpha,phi, da de dr tau) or (alpha, beta, da, de, dr, tau)
+        implicit none 
+        real, intent(in) :: step_size
+        real, intent(in) :: states(6)
+        real :: states_plus(6), states_minus(6)
+        real :: jacobian(6,6)
+        real :: R_plus(6)
+        real :: R_minus(6)
+        integer :: j, i
+        do j = 1, 6
+            states_plus = states
+            states_minus = states 
+            states_plus(j) = states_plus(j) + step_size
+            states_minus(j) = states_minus(j) - step_size
+            R_plus = calc_residual(states_plus) ! use alpha and beta at that point to calculate u,v,w,p,q,r,phi,theta,psi which make the state vector
+            ! states(j) = states(j) - 2*step_size 
+            R_minus = calc_residual(states_minus)
+            do i = 1, 6
+                jacobian(i,j) = (R_plus(i) - R_minus(i))/(2*step_size)
+            end do 
+            ! states(j) = states(j) + step_size
+        end do  
+    end function create_jacobian
+
+    function calc_residual(state) result(return_state)
+        implicit none 
+        real, intent(in) :: state(6)
+        real :: return_state(6)
+        real :: full_state_temp(13), full_state(13)
+        real :: phi, theta, psi, e0, ex, ey, ez
+        real :: quaternion(4)
+        real :: alpha, beta,  da, de, dr
+        real :: tau, u, v, w, p, q, r, gravity
+        real :: x,y,z,sct_pqr_coeff
+        z = y_init(9)
+        gravity = gravity_English(z)
+        x = 0.0
+        y = 0.0
+        p = 0.0
+        q = 0.0
+        r = 0.0
+        alpha = state(1)
+        beta = state(2)
+        da = state(3)
+        de = state(4)
+        dr = state(5)
+        tau = state(6)
+        phi = trim_bank_angle
+        theta = trim_elevation_angle
+        psi = trim_azimuth_angle
+
+        controls(1) = da
+        controls(2) = de 
+        controls(3) = dr 
+        controls(4) = tau
+
+        u = V_initial*cos(alpha)*cos(beta)
+        v = V_initial*sin(beta)
+        w = V_initial*sin(alpha)*cos(beta) 
+        sct_pqr_coeff = gravity*sin(phi)*cos(theta)/(u*cos(theta)*cos(phi)+w*sin(theta))
+        if (trim_type == "shss") then
+            if (is_trim_sideslip_angle) then 
+                beta = trim_sideslip_angle
+                phi = state(2)
+                u = V_initial*cos(alpha)*cos(beta)
+                v = V_initial*sin(beta)
+                w = V_initial*sin(alpha)*cos(beta) 
+                sct_pqr_coeff = gravity*sin(phi)*cos(theta)/(u*cos(theta)*cos(phi)+w*sin(theta))
+            else 
+                phi = trim_bank_angle
+            end if 
+        else if (trim_type == "sct") then
+            p = sct_pqr_coeff*(-sin(theta))
+            q = sct_pqr_coeff*(sin(phi)*cos(theta))
+            r = sct_pqr_coeff*(cos(phi)*cos(theta))
+        else if (trim_type == "vbr") then
+            p = (p_wind/V_initial)*u
+            q = (p_wind/V_initial)*v
+            r = (p_wind/V_initial)*w
+        end if 
+
+        quaternion = euler_to_quat([phi,theta,psi])
+        e0 = quaternion(1)
+        ex = quaternion(2)
+        ey = quaternion(3)
+        ez = quaternion(4)
+        full_state_temp = [u,v,w,p,q,r,x,y,z,e0,ex,ey,ez]
+        ! write(*,*) "full_state_temp", full_state_temp
+        full_state = differential_equations(0.0, full_state_temp)
+        ! write(*,*) "full_state" 
+        ! write(*,*) full_state
+        return_state(1:6) = full_state(1:6)
+    end function calc_residual
 
     subroutine mass_inertia() 
         implicit none 
@@ -372,10 +645,15 @@ module sim_m
 
         V = sqrt(y(1)**2 + y(2)**2 + y(3)**2)
         alpha = atan2(y(3), y(1)) ! Eq. 3.4.4
+        ! write(*,*) "alpha", alpha
         beta = asin(y(2)/V) ! Eq. 3.4.5
+        ! write(*,*) "beta", beta
         pbar = 0.5*y(4)*lat_ref/(V)
+        ! write(*,*) "pbar", pbar
         qbar = 0.5*y(5)*long_ref/(V)
+        ! write(*,*) "qbar", qbar
         rbar = 0.5*y(6)*lat_ref/(V)
+        ! write(*,*) "rbar", pbar
 
         CL1 = CL0 +CLa*alpha
         CL = CL1 + CLqbar*qbar+CLahat*ahat + CLde*de
@@ -389,6 +667,18 @@ module sim_m
         sb = sin(beta)
         cb = cos(beta)
         FM(1) = CL*sa-CS*ca*sb-CD*ca*cb
+        ! write(*,*) "CL", CL 
+        ! write(*,*) "CS", CL 
+        ! write(*,*) "CD", CD 
+        ! write(*,*) "sin(alpha)", sa 
+        ! write(*,*) "cos(alpha)", ca 
+        ! write(*,*) "sin(beta)", sb 
+        ! write(*,*) "cos(beta)", cb 
+        ! write(*,*) "tau", tau
+        ! write(*,*) "thrust0", Thrust0
+        ! write(*,*) "rho", rho 
+        ! write(*,*) "rho0", rho0
+        ! write(*,*) "Ta", Ta
         FM(2) = CS*cb-CD*sb
         FM(3) = -CL*ca-CS*sa*sb-CD*sa*cb
         FM(4) = lat_ref*Cll
