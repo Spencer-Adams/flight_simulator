@@ -100,14 +100,14 @@
             "type" : "shss",
             "elevation_or_climb" : "elevation",
             "elevation_angle[deg]" :     7.796238144056,
-            "climb_angle[deg]" : 0.0,
+            "climb_angle[deg]" : -10.0,
             "type_sct" : {
                 "bank_angle[deg]" : 80.0
             },
             "type_shss" : {
                 "bank_or_beta" : "beta",
                 "bank" : {
-                    "bank_angle[deg]" :   0.0
+                    "bank_angle[deg]" :   5.0
                 },
                 "beta" : {
                     "sideslip_angle[deg]" :  10.0
