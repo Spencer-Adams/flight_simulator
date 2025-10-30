@@ -85,22 +85,22 @@
     "initial": {
         "airspeed[ft/sec]" : 520.0,
         "altitude[ft]" : 2000.0,
-        "Euler_angles[deg]" : [80.0,3.081998897548,0.0],
-        "type" : "state",
+        "Euler_angles[deg]" : [80.0,22.56191531866,0.0],
+        "type" : "trim",
         "state" : {
-            "angle_of_attack[deg]" : 17.10749044209,
-            "sideslip_angle[deg]" : 0.02207334415665,
-            "angular_rates[deg/s]" : [-1.032263816594,18.88048561899,3.329139023506],
-            "aileron[deg]" : 0.1658355020475,
-            "elevator[deg]":-15.50351045497,
-            "rudder[deg]": -0.3932669689692,
-            "throttle": 0.812700211571
+            "angle_of_attack[deg]" : 11.83851777646,
+            "sideslip_angle[deg]" : 0.03794070429641,
+            "angular_rates[deg/s]" : [-5.248038783506,12.43936474798,2.193395627943],
+            "aileron[deg]" : 0.4598501157013,
+            "elevator[deg]":-12.50151732424,
+            "rudder[deg]": -0.06579789261793,
+            "throttle": 0.6197867188535
         },
         "trim" : {
             "type" : "sct",
             "elevation_or_climb" : "climb",
-            "elevation_angle[deg]" :     0.0,
-            "climb_angle[deg]" : 0.0,
+            "elevation_angle[deg]" :     20.0,
+            "climb_angle[deg]" : 20.0,
             "type_sct" : {
                 "bank_angle[deg]" : 80.0
             },

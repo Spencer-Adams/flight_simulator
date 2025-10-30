@@ -56,7 +56,7 @@ module sim_m
         ! initial conditions 
         t = 0.0
         y = y_init
-
+        real_time = .false.
         if (abs(dt)<TOLERANCE) then 
             real_time = .true.
             time1 = get_time()
@@ -66,19 +66,6 @@ module sim_m
             dt = time2-time1 
             write(*,*) "Dt = ", dt
             if (dt == 0.0) then 
-                write(*,*) "THE DT IS EXACTLY ZERO MY GUY!!!!"
-                write(*,*) "THE DT IS EXACTLY ZERO MY GUY!!!!"
-                write(*,*) "THE DT IS EXACTLY ZERO MY GUY!!!!"
-                write(*,*) "THE DT IS EXACTLY ZERO MY GUY!!!!"
-                write(*,*) "THE DT IS EXACTLY ZERO MY GUY!!!!"
-                write(*,*) "THE DT IS EXACTLY ZERO MY GUY!!!!"
-                write(*,*) "THE DT IS EXACTLY ZERO MY GUY!!!!"
-                write(*,*) "THE DT IS EXACTLY ZERO MY GUY!!!!"
-                write(*,*) "THE DT IS EXACTLY ZERO MY GUY!!!!"
-                write(*,*) "THE DT IS EXACTLY ZERO MY GUY!!!!"
-                write(*,*) "THE DT IS EXACTLY ZERO MY GUY!!!!"
-                write(*,*) "THE DT IS EXACTLY ZERO MY GUY!!!!"
-                write(*,*) "THE DT IS EXACTLY ZERO MY GUY!!!!"
                 write(*,*) "THE DT IS EXACTLY ZERO MY GUY!!!!"
             end if 
             y = y_init 
@@ -337,6 +324,9 @@ module sim_m
             ! call jsonx_get(j_main, "initial.trim.sideslip_angle[deg]", trim_sideslip_angle)
             alpha_initial = 0.0
             beta_initial = 0.0
+            if (trim_type == "shss" .and. is_trim_sideslip_angle) then
+                beta_initial = trim_sideslip_angle
+            end if 
             write(*,*) 
             write(*,*) 
             write(*,*) "alpha", alpha_initial
@@ -353,14 +343,14 @@ module sim_m
             write(*,*) 
 
             write(*,'(a)') 'Trimming Aircraft for '// trim_type
-            write(*,'(a,f12.6)') '  --> Azimuth angle set to psi [deg] = ', trim_azimuth_angle
-            write(*,'(a,f12.6)') '  --> Elevation angle set to theta [deg] = ', trim_elevation_angle
-            write(*,'(a,f12.6)') '  --> Bank angle set to phi [deg] = ', trim_bank_angle
+            write(*,'(a,f12.6)') '  --> Azimuth angle set to psi [deg] = ', trim_azimuth_angle*180.0/PI
+            write(*,'(a,f12.6)') '  --> Elevation angle set to theta [deg] = ', trim_elevation_angle*180.0/PI
+            write(*,'(a,f12.6)') '  --> Bank angle set to phi [deg] = ', trim_bank_angle*180.0/PI
 
             write(*,'(a,1x,e25.16)') 'Initial theta [deg] = ', trim_elevation_angle*180.0/PI
             write(*,'(a,1x,e25.16)') 'Initial gamma [deg] = ', trim_climb_angle * 180.0/PI
             write(*,'(a,1x,e25.16)') 'Initial phi [deg]   = ', trim_bank_angle*180.0/PI
-            write(*,'(a,1x,e25.16)') 'Initial beta [deg]  = ', beta_initial
+            write(*,'(a,1x,e25.16)') 'Initial beta [deg]  = ', beta_initial*180.0/PI
 
             write(*,'(a)') 'Newton Solver Settings:'
             write(*,'(a,1x,e25.16)') 'Finite Difference Step Size = ', finite_diff_step
@@ -369,29 +359,29 @@ module sim_m
 
             trim_array = trim_algorithm(y_init(9), newton_tol)
             if (is_bank_or_beta_for_shss == "beta" .and. trim_type == "shss") then 
-                write(*,*) "theta[deg]", trim_elevation_angle*180.0/PI
-                write(*,*) "phi[deg]", trim_array(2)*180.0/PI
-                write(*,*) "alpha[deg]", trim_array(1)*180.0/PI
-                write(*,*) "p[deg/s]", trim_array(3)*180.0/PI
-                write(*,*) "q[deg/s]", trim_array(4)*180.0/PI
-                write(*,*) "r[deg/s]", trim_array(5)*180.0/PI
-                write(*,*) "da[deg]", trim_array(6)*180.0/PI
-                write(*,*) "de[deg]", trim_array(7)*180.0/PI
-                write(*,*) "dr[deg]", trim_array(8)*180.0/PI
-                write(*,*) "tau", trim_array(9)
+                write(*,'(A12,1X,E22.13)') "theta[deg]", trim_elevation_angle*180.0/PI
+                write(*,'(A12,1X,E22.13)') "phi[deg]", trim_array(2)*180.0/PI
+                write(*,'(A12,1X,E22.13)') "alpha[deg]", trim_array(1)*180.0/PI
+                write(*,'(A12,1X,E22.13)') "p[deg/s]", trim_array(3)*180.0/PI
+                write(*,'(A12,1X,E22.13)') "q[deg/s]", trim_array(4)*180.0/PI
+                write(*,'(A12,1X,E22.13)') "r[deg/s]", trim_array(5)*180.0/PI
+                write(*,'(A12,1X,E22.13)') "da[deg]", trim_array(6)*180.0/PI
+                write(*,'(A12,1X,E22.13)') "de[deg]", trim_array(7)*180.0/PI
+                write(*,'(A12,1X,E22.13)') "dr[deg]", trim_array(8)*180.0/PI
+                write(*,'(A12,1X,E22.13)') "tau", trim_array(9)
             else
-                write(*,*) "theta[deg]", trim_elevation_angle*180.0/PI
-                write(*,*) "alpha[deg]", trim_array(1)*180.0/PI
-                write(*,*) "beta[deg]", trim_array(2)*180.0/PI
-                write(*,*) "p[deg/s]", trim_array(3)*180.0/PI
-                write(*,*) "q[deg/s]", trim_array(4)*180.0/PI
-                write(*,*) "r[deg/s]", trim_array(5)*180.0/PI
-                write(*,*) "da[deg]", trim_array(6)*180.0/PI
-                write(*,*) "de[deg]", trim_array(7)*180.0/PI
-                write(*,*) "dr[deg]", trim_array(8)*180.0/PI
-                write(*,*) "tau", trim_array(9)
-                write(*,*) "phi[deg]", trim_bank_angle*180.0/PI
-                write(*,*) "psi[deg]", trim_azimuth_angle*180.0/PI
+                write(*,'(A12,1X,E22.13)') "theta[deg]", trim_elevation_angle*180.0/PI
+                write(*,'(A12,1X,E22.13)') "alpha[deg]", trim_array(1)*180.0/PI
+                write(*,'(A12,1X,E22.13)') "beta[deg]", trim_array(2)*180.0/PI
+                write(*,'(A12,1X,E22.13)') "p[deg/s]", trim_array(3)*180.0/PI
+                write(*,'(A12,1X,E22.13)') "q[deg/s]", trim_array(4)*180.0/PI
+                write(*,'(A12,1X,E22.13)') "r[deg/s]", trim_array(5)*180.0/PI
+                write(*,'(A12,1X,E22.13)') "da[deg]", trim_array(6)*180.0/PI
+                write(*,'(A12,1X,E22.13)') "de[deg]", trim_array(7)*180.0/PI
+                write(*,'(A12,1X,E22.13)') "dr[deg]", trim_array(8)*180.0/PI
+                write(*,'(A12,1X,E22.13)') "tau", trim_array(9)
+                write(*,'(A12,1X,E22.13)') "phi[deg]", trim_bank_angle*180.0/PI
+                write(*,'(A12,1X,E22.13)') "psi[deg]", trim_azimuth_angle*180.0/PI
             end if 
 
             alpha_initial = trim_array(1)
@@ -424,10 +414,15 @@ module sim_m
         real :: jacobian(6,6)
         real :: gravity 
         real :: newton_input(6)
+        integer :: i, j
         gravity = gravity_English(-H_altitude)
         alpha = 0.0
         allocate(DeltaG(6))
-        beta = 0.0
+        if (trim_type == "shss" .and. is_trim_sideslip_angle) then 
+            beta = trim_sideslip_angle
+        else
+            beta = 0.0
+        end if 
         u = V_initial*cos(alpha)*cos(beta)
         v = V_initial*sin(beta)
         w = V_initial*sin(alpha)*cos(beta) 
@@ -447,13 +442,17 @@ module sim_m
         else
             phi = trim_bank_angle
         end if 
-        trim_elevation_angle = calc_theta_from_climb_angle(trim_climb_angle, u, v, w, phi)
+        ! trim_elevation_angle = calc_theta_from_climb_angle(trim_climb_angle, u, v, w, phi)
         if (trim_type == "sct") then 
             sct_pqr_coeff = gravity*sin(trim_bank_angle)*cos(trim_elevation_angle)/&
             (u*cos(trim_elevation_angle)*cos(trim_bank_angle)+w*sin(trim_elevation_angle))
             p = -sct_pqr_coeff*(sin(trim_elevation_angle))
             q = sct_pqr_coeff*(sin(trim_bank_angle)*cos(trim_elevation_angle))
             r = sct_pqr_coeff*(cos(trim_bank_angle)*cos(trim_elevation_angle))
+        else if (trim_type == "vbr") then 
+            p = (p_wind/V_initial)*u
+            q = (p_wind/V_initial)*v
+            r = (p_wind/V_initial)*w
         else
             p = 0.0
             q = 0.0
@@ -464,42 +463,80 @@ module sim_m
                 newton_input = [alpha, phi, da, de, dr, tau]
             else
                 newton_input = [alpha, beta, da, de, dr, tau]
-            end if
+        end if
+        j = 1
         do while(current_error > newton_tol)
-            ! trim_elevation_angle = calc_theta_from_climb_angle(trim_climb_angle, u, v, w, phi)
+            if (newton_input(6) < 0.0) then 
+                newton_input(6) = 0.0
+            else if (newton_input(6) > 1.0) then 
+                newton_input(6) = 1.0
+            end if 
             alpha = newton_input(1)
-            beta = newton_input(2)
+            if (trim_type == "shss" .and. is_trim_sideslip_angle) then 
+                beta = trim_sideslip_angle
+            else
+                beta = newton_input(2)
+            end if 
+            ! beta = newton_input(2)
             u = V_initial*cos(alpha)*cos(beta)
             v = V_initial*sin(beta)
             w = V_initial*sin(alpha)*cos(beta) 
-            trim_elevation_angle = calc_theta_from_climb_angle(trim_climb_angle, u, v, w, phi)
-            residual = calc_residual(newton_input)
-            write(*,'(a)') 'Updating rotation rates for ', trim_type
-            write(*,'(a,1x,e25.16)') 'p [deg/s] = ', (p * 180.0/PI)
-            write(*,'(a,1x,e25.16)') 'q [deg/s] = ', (q * 180.0/PI)
-            write(*,'(a,1x,e25.16)') 'r [deg/s] = ', (r * 180.0/PI)
-
-            write(*,'(a)') 'G defined as G = [alpha, beta, aileron, elevator, rudder, throttle]'
-            write(*,'(a,1x,6(e25.16,","))') 'G = ', newton_input
-            write(*,'(a,1x,6(e25.16,","))') 'r = ', residual
-
-            write(*,'(a,1x,e25.16)') 'current_error = ', current_error
+            if (is_elevation_or_climb == "climb") then 
+                trim_elevation_angle = calc_theta_from_climb_angle(trim_climb_angle, u, v, w, phi)
+            end if 
+            ! write(*,*) "Trim theta", trim_elevation_angle * 180.0/PI
+            if (trim_type == "sct") then  
+                sct_pqr_coeff = gravity*sin(trim_bank_angle)*cos(trim_elevation_angle)/&
+                (u*cos(trim_elevation_angle)*cos(trim_bank_angle)+w*sin(trim_elevation_angle))
+                p = -sct_pqr_coeff*(sin(trim_elevation_angle))
+                q = sct_pqr_coeff*(sin(trim_bank_angle)*cos(trim_elevation_angle))
+                r = sct_pqr_coeff*(cos(trim_bank_angle)*cos(trim_elevation_angle))
+            else if (trim_type == "vbr") then 
+                p = (p_wind/V_initial)*u
+                q = (p_wind/V_initial)*v
+                r = (p_wind/V_initial)*w
+            else 
+                p = 0.0
+                q = 0.0
+                r = 0.0
+            end if 
+            residual = calc_residual(newton_input, p, q, r)
+            if (rk4_verbose) then
+                write(*,'(a)') 'Updating rotation rates for ', trim_type
+                write(*,'(a,1x,e25.16)') 'p [deg/s] = ', (p * 180.0/PI)
+                write(*,'(a,1x,e25.16)') 'q [deg/s] = ', (q * 180.0/PI)
+                write(*,'(a,1x,e25.16)') 'r [deg/s] = ', (r * 180.0/PI)
+                write(*,'(a)') 'G defined as G = [alpha, beta, aileron, elevator, rudder, throttle]'
+                write(*,'(a,1x,6(e25.16,","))') 'G = ', newton_input
+                write(*,'(a,1x,6(e25.16,","))') 'r = ', residual
+                write(*,'(a,1x,e25.16)') 'current_error = ', current_error
+            end if
             ! write(*,*) "residual"
             ! write(*,*) residual
-            jacobian = create_jacobian(newton_input, finite_diff_step)
+            jacobian = create_jacobian(newton_input, finite_diff_step, p, q, r)
+            if (rk4_verbose) then
+                write(*,'(a)') 'Jacobian Matrix ='
+                do i = 1,6
+                    write(*,'(6(1x,e25.16))') jacobian(i,:)
+                end do
+            end if
             ! write(*,*) "jacobian"
             ! write(*,*) jacobian
             call lu_solve(6,jacobian,residual,DeltaG)
             ! write(*,*) "DeltaG"
-            ! write(*,*) DeltaG
+            ! write(*,*) -DeltaG
             newton_input = newton_input - relax_factor*DeltaG
-            residual = calc_residual(newton_input)
+            ! write(*,*) "New G"
+            ! write(*,*) newton_input
+            residual = calc_residual(newton_input, p, q, r)
+            ! write(*,'(a,1x,6(e25.16,","))') 'r = ', residual
             current_error = maxval(abs(residual))
-            ! alpha = newton_input(1)
-            ! beta = newton_input(2)
-            ! u = V_initial*cos(alpha)*cos(beta)
-            ! v = V_initial*sin(beta)
-            ! w = V_initial*sin(alpha)*cos(beta) 
+            ! write(*,*) "Iteration, Residual, alpha, beta, p, q, &
+            ! r, phi, theta, ail, el, rud, throttle"
+            ! write(*,*) j, current_error, newton_input(1)*180.0/PI, &
+            ! newton_input(2)*180.0/PI, p*180.0/PI, q*180.0/PI, r*180.0/PI, phi*180.0/PI,trim_elevation_angle*180.0/PI, &
+            ! newton_input(3)*180.0/PI, newton_input(4)*180.0/PI, newton_input(5)*180.0/PI, newton_input(6)
+            j = j + 1
             ! trim_elevation_angle = calc_theta_from_climb_angle(trim_climb_angle, u, v, w, phi)
         end do 
         alpha = newton_input(1)
@@ -535,35 +572,32 @@ module sim_m
         trim_result = [alpha, beta, p, q, r, da, de, dr, tau]
     end function trim_algorithm
 
-    function create_jacobian(states, step_size) result(jacobian) ! states should be six elements long (alpha,phi, da de dr tau) or (alpha, beta, da, de, dr, tau)
+    function create_jacobian(states, step_size, p, q, r) result(jacobian) ! states should be six elements long (alpha,phi, da de dr tau) or (alpha, beta, da, de, dr, tau)
         implicit none 
-        real, intent(in) :: step_size
+        real, intent(in) :: step_size, p, q, r
         real :: states(6)
         ! real :: states_plus(6), states_minus(6)
         real :: jacobian(6,6)
         real :: R_plus(6)
         real :: R_minus(6)
         integer :: j, i
-        write(*,'(a)') 'Building Jacobian Matrix:'
+        ! write(*,'(a)') 'Building Jacobian Matrix:'
         do j = 1, 6
             states(j) = states(j) + step_size
-            write(*,'(a,i3)') 'Computing gradient relative to G[', j-1, ']'
-            write(*,'(a)') '   Positive Finite-Difference Step '
-            write(*,'(a,1x,6(e25.16,","))') 'G = ', states
-            R_plus = calc_residual(states) ! use alpha and beta at that point to calculate u,v,w,p,q,r,phi,theta,psi which make the state vector
+            ! write(*,'(a,i3)') 'Computing gradient relative to G[', j-1, ']'
+            ! write(*,'(a)') '   Positive Finite-Difference Step '
+            ! write(*,'(a,1x,6(e25.16,","))') 'G = ', states
+            R_plus = calc_residual(states, p, q, r) ! use alpha and beta at that point to calculate u,v,w,p,q,r,phi,theta,psi which make the state vector
             states(j) = states(j) - 2*step_size 
-            R_minus = calc_residual(states)
-            write(*,'(a,1x,6(e25.16,","))') 'r = ', R_plus
-            write(*,'(a)') '   Negative Finite-Difference Step '
-            write(*,'(a,1x,6(e25.16,","))') 'G = ', states
-            write(*,'(a,1x,6(e25.16,","))') 'r = ', R_minus
+            R_minus = calc_residual(states, p, q, r)
+            ! write(*,'(a,1x,6(e25.16,","))') 'r = ', R_plus
+            ! write(*,'(a)') '   Negative Finite-Difference Step '
+            ! write(*,'(a,1x,6(e25.16,","))') 'G = ', states
+            ! write(*,'(a,1x,6(e25.16,","))') 'r = ', R_minus
             do i = 1, 6
                 jacobian(i,j) = (R_plus(i) - R_minus(i))/(2*step_size)
             end do 
-            write(*,'(a)') 'Jacobian Matrix ='
-            do i = 1,6
-                write(*,'(6(1x,e25.16))') jacobian(i,:)
-            end do
+
             states(j) = states(j) + step_size
         end do  
     end function create_jacobian
@@ -572,65 +606,68 @@ module sim_m
         real, intent(in) :: climb_angle, u, v, w, phi
         real :: return_theta, error_for_elevation, temp_lhs, temp_rhs_1, temp_rhs_2
         real :: parenth_temp, S_theta_1, S_theta_2, theta_1, theta_2
+        ! write(*,*) "Solving for elevation angle given a climb angle"
         error_for_elevation = 1e-12
         temp_lhs = V_initial*sin(trim_climb_angle)
         parenth_temp = v*sin(phi)+w*cos(phi)
         S_theta_1 = (u*V_initial*sin(trim_climb_angle)+parenth_temp*sqrt(u**2 + parenth_temp**2 - &
         V_initial**2*sin(trim_climb_angle)**2))/(u**2 + parenth_temp**2)
         theta_1 = asin(S_theta_1)
+        ! write(*,*) "theta 1 [deg] = ", theta_1 * 180.0/PI
         S_theta_2 = (u*V_initial*sin(trim_climb_angle)-parenth_temp*sqrt(u**2 + parenth_temp**2 - &
         V_initial**2*sin(trim_climb_angle)**2))/(u**2 + parenth_temp**2)
         theta_2 = asin(S_theta_2)
+        ! write(*,*) "theta 2 [deg] = ", theta_2 * 180.0/PI
         temp_rhs_1 = u*S_theta_1 - parenth_temp*cos(theta_1)
         temp_rhs_2 = u*S_theta_2 - parenth_temp*cos(theta_2)
         if (abs(temp_lhs-temp_rhs_1) <= error_for_elevation) then
             return_theta = theta_1
+            ! write(*,*) "correct theta [deg] = ", theta_1 * 180.0/PI
         else if (abs(temp_lhs - temp_rhs_2) <= error_for_elevation) then 
             return_theta = theta_2 
+                ! write(*,*) "correct theta [deg] = ", theta_2 * 180.0/PI
         else 
             write(*,*) "Error", abs(temp_lhs - temp_rhs_2)
             write(*,*) "WARNING, BOTH THETA VALUES DO NOT SATISFY THE LHS OF EQ. 7.2.3" 
         end if 
     end function calc_theta_from_climb_angle
 
-    function calc_residual(state) result(return_state) !!! move pqr out of loop. 
+    function calc_residual(state, p, q, r) result(return_state) !!! move pqr out of loop. 
         implicit none 
-        real, intent(in) :: state(6)
+        real, intent(in) :: state(6), p, q, r
         real :: return_state(6)
         real :: full_state_temp(13), full_state(13)
         real :: phi, theta, psi, e0, ex, ey, ez
         real :: quaternion(4)
         real :: alpha, beta,  da, de, dr
-        real :: tau, u, v, w, p, q, r, gravity
+        real :: tau, u, v, w, gravity
         real :: x,y,z,sct_pqr_coeff, temp_lhs, temp_rhs_1, temp_rhs_2
         z = y_init(9)
         gravity = gravity_English(-z)
         x = 0.0
         y = 0.0
-        p = 0.0
-        q = 0.0
-        r = 0.0
         alpha = state(1)
         beta = state(2)
         da = state(3)
         de = state(4)
         dr = state(5)
         tau = state(6)
+        if (tau < 0.0) then 
+            tau = 0.0
+        else if (tau > 1.0) then 
+            tau = 1.0
+        end if 
         u = V_initial*cos(alpha)*cos(beta)
         v = V_initial*sin(beta)
         w = V_initial*sin(alpha)*cos(beta) 
         phi = trim_bank_angle
         psi = trim_azimuth_angle
-        if (is_elevation_or_climb == "climb") then
-            theta = calc_theta_from_climb_angle(trim_climb_angle, u, v, w, phi)
-            ! trim_elevation_angle = theta 
-        else 
-            theta = trim_elevation_angle
-        end if
+        theta = trim_elevation_angle
         controls(1) = da
         controls(2) = de 
         controls(3) = dr 
         controls(4) = tau
+
         if (trim_type == "shss") then
             if (is_trim_sideslip_angle) then 
                 beta = trim_sideslip_angle
@@ -638,22 +675,10 @@ module sim_m
                 u = V_initial*cos(alpha)*cos(beta)
                 v = V_initial*sin(beta)
                 w = V_initial*sin(alpha)*cos(beta) 
-                sct_pqr_coeff = gravity*sin(phi)*cos(theta)/(u*cos(theta)*cos(phi)+w*sin(theta))
             else 
                 phi = trim_bank_angle
             end if 
-        else if (trim_type == "sct") then
-            sct_pqr_coeff = gravity*sin(trim_bank_angle)*cos(trim_elevation_angle)/&
-            (u*cos(trim_elevation_angle)*cos(trim_bank_angle)+w*sin(trim_elevation_angle))
-            p = -sct_pqr_coeff*(sin(trim_elevation_angle))
-            q = sct_pqr_coeff*(sin(trim_bank_angle)*cos(trim_elevation_angle))
-            r = sct_pqr_coeff*(cos(trim_bank_angle)*cos(trim_elevation_angle))
-        else if (trim_type == "vbr") then
-            p = (p_wind/V_initial)*u
-            q = (p_wind/V_initial)*v
-            r = (p_wind/V_initial)*w
         end if 
-
         quaternion = euler_to_quat([phi,theta,psi])
         e0 = quaternion(1)
         ex = quaternion(2)
@@ -744,6 +769,11 @@ module sim_m
         de = controls(2)
         dr = controls(3)
         tau = controls(4)
+        if (tau < 0.0) then 
+            tau = 0.0
+        else if (tau > 1.0) then 
+            tau = 1.0
+        end if 
 
         call std_atm_English(-y(9), Z, T, P, rho, a, mu)
 
