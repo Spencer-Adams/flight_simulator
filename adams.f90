@@ -107,6 +107,7 @@ function quat_dependent_to_base(v2, quat) result(v1)
 end function quat_dependent_to_base
 
 subroutine quat_norm(quat)
+    implicit none
     ! normalizes a quaternion such that it becomes a unit quaternion. 
     ! Done the EXACT way a unit vector is the vector divided by its magnitude
     implicit none
@@ -118,6 +119,7 @@ end subroutine quat_norm
 
 function euler_to_quat(euler) result(quat)
     ! Eq. 1.6.2 in the book. 
+    implicit none 
     real, intent(in) :: euler(3) 
     real :: quat(4)
     real :: phi, theta, psi 
@@ -149,6 +151,7 @@ end function euler_to_quat
 
 function quat_to_euler(quat) result(euler)
     ! Eq. 1.6.3 in the book. 
+    implicit none
     real, intent(in) :: quat(4) 
     real :: euler(3)
     real :: cos_pi_4, arcsin_quat_cos_pi_4
@@ -176,6 +179,7 @@ end function quat_to_euler
 
 !!! STANDARD ATMOSPHERE !!!
 function gravity_SI(H) result(g) ! 3.13.1
+    implicit none 
     ! H is the Geometric height above sea-level in meters. 
     real, intent(in) :: H
     real :: g
@@ -183,6 +187,7 @@ function gravity_SI(H) result(g) ! 3.13.1
 end function gravity_SI
 
 function gravity_English(H) result(g) ! 3.13.2
+    implicit none
     ! H is the Geometric height above sea-level in ft. 
     real, intent(in) :: H
     real :: g
@@ -190,6 +195,7 @@ function gravity_English(H) result(g) ! 3.13.2
 end function gravity_English
 
 subroutine std_atm_SI(H, Z, T, P, rho, a, mu)
+    implicit none
     ! Z = Geopotential Alt (Eq 3.2.2), T = temp (from Eq 3.2.3 and table 3.2.1), P = pressure (Eq. 3.2.7 and table 3.2.1), rho = density (Eq. 3.2.8), a = sonic velocity (Eq, 3.2.9)
     real, intent(in) :: H
     real, intent(inout) ::  Z, T, P, rho, a, mu
@@ -231,6 +237,7 @@ subroutine std_atm_SI(H, Z, T, P, rho, a, mu)
 end subroutine std_atm_SI
 
 subroutine std_atm_English(H, Z, T, P, rho, a, mu)
+    implicit none
     real, intent(in) :: H
     real, intent(inout) ::  Z, T, P, rho, a, mu
     real :: si_H

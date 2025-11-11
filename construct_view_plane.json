@@ -1,0 +1,17 @@
+{
+    "camera" : {
+        "location_x_y_z[ft]" : [-80.0, 0.0, -5.0],
+        "orientation_phi_theta_psi[deg]" : [5.0, -10.0, 0.0],
+        "view_plane" : {
+            "distance[ft]" : 1.0,
+            "angle[deg]" : 60.0,
+            "aspect_ratio" : 2.0
+        }
+        },
+    "ground" : {
+            "altitude[ft]" : -20.0,
+            "grid_number" : 20,
+            "grid_scale[ft]" : 4.0,
+            "color" : "black"
+    }
+}

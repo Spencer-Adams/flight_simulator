@@ -1,0 +1,143 @@
+{
+    "x_notes": [
+        {   
+            "refresh_rate": [
+                "optional",
+                "If > 0, then it is the Hz of the connection signal. Otherwise it is 1e12 Hz",
+                "defaults to 1e12 Hz, or effectively as fast as the main loop"
+            ],
+            "type": [
+                "required",
+                "must be either 'send' or 'receive'."
+            ],
+            "channel_type": [
+                "required",
+                "must be either 'udp', or 'file'"
+            ],
+            "number_of_values": [
+                "required",
+                "integer that is greater than 0. Determines the number of values to send/receive by the connection"
+            ],
+            "verbose": [
+                "optional",
+                "boolean that defaults to true",
+                "whether or not the connection should print the values to the screen whenever it sends/receives"
+            ],
+            "port_ID": [
+                "required if channel_type is udp, otherwise ignored",
+                "integer of the udp port number. Must be a valid port number"
+            ],
+            "double_precision": [
+                "optional if channel_type is udp, otherwise ignored",
+                "boolean that defaults to False",
+                "Determines whether to send/receive the udp message as single precision floats or double precision floats. This must match with the corresponding application for the message transfer to succeed"
+            ],
+            "IP_address": [
+                "optional if channel_type is udp, otherwise ignored",
+                "defaults to the local computer, '127.0.0.1', if type is send and all traffic, '0.0.0.0', if type is receive",
+                "determines where to send the udp message"
+            ],
+            "wait_for_data": [
+                "optional if channel_type is udp and type is receive, otherwise ignored",
+                "boolean that defaults to False",
+                "determines whether the udp receive command should block code execution until the message is received or whether to keep running even though a new message has not been received, in which case, the latest results are still used"
+            ],
+            "little_endian": [
+                "optional if channel_type is udp, otherwise ignored",
+                "boolean that defaults to True",
+                "determines the endian format type of the data within the udp message. True is little endian and False is big endian. Most current systems/applications use little endian"
+            ],
+            "filename": [
+                "required if channel_type is file, otherwise ignored",
+                "string that is the name of the file",
+                "if type is send, the file will be overwritten, if it is receive, the file will be read in as a database",
+                "database should be a csv formatted file, with a column header and the first column is time and the remaining columns are the values to be received from the database. recv commands should pass in the current time, and the database will be interpolated and return the remaining values"
+            ],
+            "pathname": [
+                "optional if channel_type is file, otherwise ignored",
+                "string of the path to the file",
+                "defaults to nothing, meaning that either the filename must contain the path, or the file must be in the same folder as the code"
+            ],
+            "database_type": [
+                "required if channel_type is file and type is receive, otherwise ignored",
+                "currently it must be 'rectilinear', but future versions of the code will allow other types of databases"
+            ]
+        }
+    ],
+    "sim_controls": {
+        "type": "receive",
+        "number_of_values": 6,
+        "refresh_rate": 100,
+        "channel_type": "udp",
+        "double_precision": true,
+        "wait_for_data": true,
+        "verbose": false,
+        "port_ID": 50000
+    },
+    "sim_graphics": {
+        "type": "send",
+        "number_of_values": 14,
+        "refresh_rate": 60,
+        "channel_type": "udp",
+        "verbose": false,
+        "port_ID": 5005
+    },
+    "sim_datalog": {
+        "type": "send",
+        "number_of_values": 13,
+        "refresh_rate": 20,
+        "channel_type": "file",
+        "filename": "datalog.csv",
+        "column_names": [
+            "t",
+            "u",
+            "v",
+            "w",
+            "p[deg/s]",
+            "q[deg/s]",
+            "r[deg/s]",
+            "xf",
+            "yf",
+            "zf",
+            "phi[deg]",
+            "theta[deg]",
+            "psi[deg]"
+        ]
+    },
+    "sim_sensors": {
+        "type": "send",
+        "number_of_values": 7,
+        "refresh_rate": 100,
+        "channel_type": "udp",
+        "double_precision": true,
+        "verbose": false,
+        "port_ID": 50001
+    },
+    "ctrl_desired_states": {
+        "type": "receive",
+        "number_of_values": 6,
+        "refresh_rate": 100,
+        "channel_type": "file",
+        "filename": "commands.csv",
+        "database_type": "rectilinear",
+        "verbose": false
+    },
+    "ctrl_actual_states": {
+        "type": "receive",
+        "number_of_values": 7,
+        "refresh_rate": 100,
+        "channel_type": "udp",
+        "double_precision": true,
+        "wait_for_data": false,
+        "port_ID": 50001
+    },
+    "ctrl_commands": {
+        "type": "send",
+        "number_of_values": 6,
+        "refresh_rate": 150,
+        "channel_type": "udp",
+        "double_precision": true,
+        "verbose": false,
+        "port_ID": 50000
+    }
+}

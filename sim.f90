@@ -361,6 +361,7 @@ module sim_m
             if (is_bank_or_beta_for_shss == "beta" .and. trim_type == "shss") then 
                 write(*,'(A12,1X,E22.13)') "theta[deg]", trim_elevation_angle*180.0/PI
                 write(*,'(A12,1X,E22.13)') "phi[deg]", trim_array(2)*180.0/PI
+                write(*,'(A12,1X,E22.13)') "beta[deg]", beta_initial*180.0/PI
                 write(*,'(A12,1X,E22.13)') "alpha[deg]", trim_array(1)*180.0/PI
                 write(*,'(A12,1X,E22.13)') "p[deg/s]", trim_array(3)*180.0/PI
                 write(*,'(A12,1X,E22.13)') "q[deg/s]", trim_array(4)*180.0/PI
@@ -371,6 +372,7 @@ module sim_m
                 write(*,'(A12,1X,E22.13)') "tau", trim_array(9)
             else
                 write(*,'(A12,1X,E22.13)') "theta[deg]", trim_elevation_angle*180.0/PI
+                write(*,'(A12,1X,E22.13)') "phi[deg]", trim_bank_angle*180.0/PI
                 write(*,'(A12,1X,E22.13)') "alpha[deg]", trim_array(1)*180.0/PI
                 write(*,'(A12,1X,E22.13)') "beta[deg]", trim_array(2)*180.0/PI
                 write(*,'(A12,1X,E22.13)') "p[deg/s]", trim_array(3)*180.0/PI
@@ -380,8 +382,7 @@ module sim_m
                 write(*,'(A12,1X,E22.13)') "de[deg]", trim_array(7)*180.0/PI
                 write(*,'(A12,1X,E22.13)') "dr[deg]", trim_array(8)*180.0/PI
                 write(*,'(A12,1X,E22.13)') "tau", trim_array(9)
-                write(*,'(A12,1X,E22.13)') "phi[deg]", trim_bank_angle*180.0/PI
-                write(*,'(A12,1X,E22.13)') "psi[deg]", trim_azimuth_angle*180.0/PI
+                ! write(*,'(A12,1X,E22.13)') "psi[deg]", trim_azimuth_angle*180.0/PI
             end if 
 
             alpha_initial = trim_array(1)
@@ -503,40 +504,40 @@ module sim_m
             end if 
             residual = calc_residual(newton_input, p, q, r)
             ! if (rk4_verbose) then
-            write(*,'(a)') 'Updating rotation rates for ', trim_type
-            write(*,'(a,1x,e25.16)') 'p [deg/s] = ', (p * 180.0/PI)
-            write(*,'(a,1x,e25.16)') 'q [deg/s] = ', (q * 180.0/PI)
-            write(*,'(a,1x,e25.16)') 'r [deg/s] = ', (r * 180.0/PI)
-            write(*,'(a)') 'G defined as G = [alpha, beta, aileron, elevator, rudder, throttle]'
-            write(*,'(a,1x,6(e25.16,","))') 'G = ', newton_input
-            write(*,'(a,1x,6(e25.16,","))') 'r = ', residual
-            write(*,'(a,1x,e25.16)') 'current_error = ', current_error
+            ! write(*,'(a)') 'Updating rotation rates for ', trim_type
+            ! write(*,'(a,1x,e25.16)') 'p [deg/s] = ', (p * 180.0/PI)
+            ! write(*,'(a,1x,e25.16)') 'q [deg/s] = ', (q * 180.0/PI)
+            ! write(*,'(a,1x,e25.16)') 'r [deg/s] = ', (r * 180.0/PI)
+            ! write(*,'(a)') 'G defined as G = [alpha, beta, aileron, elevator, rudder, throttle]'
+            ! write(*,'(a,1x,6(e25.16,","))') 'G = ', newton_input
+            ! write(*,'(a,1x,6(e25.16,","))') 'r = ', residual
+            ! write(*,'(a,1x,e25.16)') 'current_error = ', current_error
             ! end if
             ! write(*,*) "residual"
             ! write(*,*) residual
             jacobian = create_jacobian(newton_input, finite_diff_step, p, q, r)
             ! if (rk4_verbose) then
-            write(*,'(a)') 'Jacobian Matrix ='
-            do i = 1,6
-                write(*,'(6(1x,e25.16))') jacobian(i,:)
-            end do
+            ! write(*,'(a)') 'Jacobian Matrix ='
+            ! do i = 1,6
+                ! write(*,'(6(1x,e25.16))') jacobian(i,:)
+            ! end do
             ! end if
             ! write(*,*) "jacobian"
             ! write(*,*) jacobian
             call lu_solve(6,jacobian,residual,DeltaG)
-            write(*,*) "DeltaG"
-            write(*,*) -DeltaG
+            ! write(*,*) "DeltaG"
+            ! write(*,*) -DeltaG
             newton_input = newton_input - relax_factor*DeltaG
-            write(*,*) "New G"
-            write(*,*) newton_input
+            ! write(*,*) "New G"
+            ! write(*,*) newton_input
             residual = calc_residual(newton_input, p, q, r)
-            write(*,'(a,1x,6(e25.16,","))') 'r = ', residual
+            ! write(*,'(a,1x,6(e25.16,","))') 'r = ', residual
             current_error = maxval(abs(residual))
-            write(*,*) "Iteration, Residual, alpha, beta, p, q, &
-            r, phi, theta, ail, el, rud, throttle"
-            write(*,*) j, current_error, newton_input(1)*180.0/PI, &
-            newton_input(2)*180.0/PI, p*180.0/PI, q*180.0/PI, r*180.0/PI, phi*180.0/PI,trim_elevation_angle*180.0/PI, &
-            newton_input(3)*180.0/PI, newton_input(4)*180.0/PI, newton_input(5)*180.0/PI, newton_input(6)
+            ! write(*,*) "Iteration, Residual, alpha, beta, p, q, &
+            ! r, phi, theta, ail, el, rud, throttle"
+            ! write(*,*) j, current_error, newton_input(1)*180.0/PI, &
+            ! newton_input(2)*180.0/PI, p*180.0/PI, q*180.0/PI, r*180.0/PI, phi*180.0/PI,trim_elevation_angle*180.0/PI, &
+            ! newton_input(3)*180.0/PI, newton_input(4)*180.0/PI, newton_input(5)*180.0/PI, newton_input(6)
             j = j + 1
         end do 
         alpha = newton_input(1)
@@ -581,19 +582,19 @@ module sim_m
         real :: R_plus(6)
         real :: R_minus(6)
         integer :: j, i
-        write(*,'(a)') 'Building Jacobian Matrix:'
+        ! write(*,'(a)') 'Building Jacobian Matrix:'
         do j = 1, 6
             states(j) = states(j) + step_size
-            write(*,'(a,i3)') 'Computing gradient relative to G[', j-1, ']'
-            write(*,'(a)') '   Positive Finite-Difference Step '
-            write(*,'(a,1x,6(e25.16,","))') 'G = ', states
+            ! write(*,'(a,i3)') 'Computing gradient relative to G[', j-1, ']'
+            ! write(*,'(a)') '   Positive Finite-Difference Step '
+            ! write(*,'(a,1x,6(e25.16,","))') 'G = ', states
             R_plus = calc_residual(states, p, q, r) ! use alpha and beta at that point to calculate u,v,w,p,q,r,phi,theta,psi which make the state vector
             states(j) = states(j) - 2*step_size 
             R_minus = calc_residual(states, p, q, r)
-            write(*,'(a,1x,6(e25.16,","))') 'r = ', R_plus
-            write(*,'(a)') '   Negative Finite-Difference Step '
-            write(*,'(a,1x,6(e25.16,","))') 'G = ', states
-            write(*,'(a,1x,6(e25.16,","))') 'r = ', R_minus
+            ! write(*,'(a,1x,6(e25.16,","))') 'r = ', R_plus
+            ! write(*,'(a)') '   Negative Finite-Difference Step '
+            ! write(*,'(a,1x,6(e25.16,","))') 'G = ', states
+            ! write(*,'(a,1x,6(e25.16,","))') 'r = ', R_minus
             do i = 1, 6
                 jacobian(i,j) = (R_plus(i) - R_minus(i))/(2*step_size)
             end do 
@@ -606,26 +607,26 @@ module sim_m
         real, intent(in) :: climb_angle, u, v, w, phi
         real :: return_theta, error_for_elevation, temp_lhs, temp_rhs_1, temp_rhs_2
         real :: parenth_temp, S_theta_1, S_theta_2, theta_1, theta_2
-        write(*,*) "Solving for elevation angle given a climb angle"
+        ! write(*,*) "Solving for elevation angle given a climb angle"
         error_for_elevation = 1e-12
         temp_lhs = V_initial*sin(trim_climb_angle)
         parenth_temp = v*sin(phi)+w*cos(phi)
         S_theta_1 = (u*V_initial*sin(trim_climb_angle)+parenth_temp*sqrt(u**2 + parenth_temp**2 - &
         V_initial**2*sin(trim_climb_angle)**2))/(u**2 + parenth_temp**2)
         theta_1 = asin(S_theta_1)
-        write(*,*) "theta 1 [deg] = ", theta_1 * 180.0/PI
+        ! write(*,*) "theta 1 [deg] = ", theta_1 * 180.0/PI
         S_theta_2 = (u*V_initial*sin(trim_climb_angle)-parenth_temp*sqrt(u**2 + parenth_temp**2 - &
         V_initial**2*sin(trim_climb_angle)**2))/(u**2 + parenth_temp**2)
         theta_2 = asin(S_theta_2)
-        write(*,*) "theta 2 [deg] = ", theta_2 * 180.0/PI
+        ! write(*,*) "theta 2 [deg] = ", theta_2 * 180.0/PI
         temp_rhs_1 = u*S_theta_1 - parenth_temp*cos(theta_1)
         temp_rhs_2 = u*S_theta_2 - parenth_temp*cos(theta_2)
         if (abs(temp_lhs-temp_rhs_1) <= error_for_elevation) then
             return_theta = theta_1
-            write(*,*) "correct theta [deg] = ", theta_1 * 180.0/PI
+            ! write(*,*) "correct theta [deg] = ", theta_1 * 180.0/PI
         else if (abs(temp_lhs - temp_rhs_2) <= error_for_elevation) then 
             return_theta = theta_2 
-                write(*,*) "correct theta [deg] = ", theta_2 * 180.0/PI
+                ! write(*,*) "correct theta [deg] = ", theta_2 * 180.0/PI
         else 
             write(*,*) "Error", abs(temp_lhs - temp_rhs_2)
             write(*,*) "WARNING, BOTH THETA VALUES DO NOT SATISFY THE LHS OF EQ. 7.2.3" 
