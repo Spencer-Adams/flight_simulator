@@ -1,8 +1,24 @@
 {
     "simulation": {
-        "time_step[sec]": 0.01,
+        "time_step[sec]": 0.0,
         "end_time[sec]": 20.0,
         "rk4_verbose" : false
+    },
+    "connections" : {
+        "_graphics" : {
+            "type" : "send",
+            "number_of_values": 14,
+            "refresh_rate": 60,
+            "channel_type": "file",
+            "filename": "graphics.csv"
+        },
+        "graphics" : {
+            "type" : "send",
+            "number_of_values": 14,
+            "refresh_rate": 40,
+            "channel_type": "udp",
+            "port_ID": 50000
+        }
     },
     "vehicle" : {
         "mass" : {
@@ -83,9 +99,9 @@
         }
     },
     "initial": {
-        "airspeed[ft/sec]" : 350.0,
-        "altitude[ft]" : 3000.0,
-        "Euler_angles[deg]" : [80.0,3.081998897548,0.0],
+        "airspeed[ft/sec]" : 520.0,
+        "altitude[ft]" : 2000.0,
+        "Euler_angles[deg]" : [0.0,0.0,0.0],
         "type" : "trim",
         "state" : {
             "angle_of_attack[deg]" : 17.10749044209,
@@ -97,12 +113,12 @@
             "throttle": 0.812700211571
         },
         "trim" : {
-            "type" : "shss",
+            "type" : "sct",
             "elevation_or_climb" : "climb",
-            "elevation_angle[deg]" :     0.0,
-            "climb_angle[deg]" : 10.0,
+            "elevation_angle[deg]" : 10.0,
+            "climb_angle[deg]" : 0.0,
             "type_sct" : {
-                "bank_angle[deg]" : 80.0
+                "bank_angle[deg]" : 30.0
             },
             "type_shss" : {
                 "bank_or_beta" : "beta",
@@ -110,7 +126,7 @@
                     "bank_angle[deg]" :   0.0
                 },
                 "beta" : {
-                    "sideslip_angle[deg]" :  10.0
+                    "sideslip_angle[deg]" :  0.0
                 }
             },
             "type_vbr" : {

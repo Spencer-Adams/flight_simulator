@@ -48,12 +48,11 @@ module sim_m
     ! end subroutine simulation_main
     subroutine run()
         implicit none 
-        real :: y(13), y1(13)
+        real :: y(13), y1(13), s(14)
         ! real :: Z_temp, P_temp, T_temp, a_temp, mu_temp
         real :: cpu_start_time, cpu_end_time, time1, time2, actual_time, integrated_time
         integer :: io_unit
         logical :: real_time
-        call udp_initialize()
         delta_t_over_2 = dt/2.0
         delta_t_over_6 = dt/6.0
         n = 13
@@ -76,6 +75,8 @@ module sim_m
             y = y_init 
             t = 0.0
         end if
+        delta_t_over_2 = dt/2.0
+        delta_t_over_6 = dt/6.0
         open(newunit=io_unit, file='output.txt', status='replace', action='write')
         call quat_norm(y(10:13))
         write(io_unit,*) "        t[s]                   u[ft/s]               v[ft/s]"// &
@@ -96,20 +97,24 @@ module sim_m
             y = y1
             t = t + dt 
             integrated_time = integrated_time + dt
-            write(io_unit,'(14E22.13)') t,y(:)
+            ! write(io_unit,'(14E22.13)') t,y(:)
+            s(1) = t
+            s(2:14) = y(1:13)
+            ! write(*,'(14E22.13)') s
+            call graphics%send(s)
             ! write(*,'(14E22.13)') t,y(:)
             if(real_time) then ! get estimate for next dt time step
                 time2 = get_time()
                 dt = time2-time1 
                 time1 = time2 
             end if 
+
         end do
         cpu_end_time = get_time()
         actual_time = cpu_end_time-cpu_start_time
         write(*,*) '    Total integrated time [s] = ', integrated_time
         write(*,*) 'Total actual elapsed time [s]= ', actual_time
         write(*,*) 'Total error in time [s] = ', integrated_time - actual_time
-        call udp_finalize()
     end subroutine run
 
     function cross_product_3D(a, b) result(result)
@@ -195,6 +200,7 @@ module sim_m
     subroutine init(filename)
         implicit none 
         character(100), intent(in) :: filename
+        type(json_value), pointer :: j_connections, j_graphics
         ! type2, intent(out) ::  arg2
         ! call get_command_argument(1,filename)
         call std_atm_English(0.0,Z_temp,T_temp,P_temp,rho0,a_temp,mu_temp)
@@ -365,6 +371,7 @@ module sim_m
 
             trim_array = trim_algorithm(y_init(9), newton_tol)
             if (is_bank_or_beta_for_shss == "beta" .and. trim_type == "shss") then 
+                y_init(10:13) = euler_to_quat([trim_array(2), trim_elevation_angle, trim_azimuth_angle])
                 write(*,'(A12,1X,E22.13)') "theta[deg]", trim_elevation_angle*180.0/PI
                 write(*,'(A12,1X,E22.13)') "phi[deg]", trim_array(2)*180.0/PI
                 write(*,'(A12,1X,E22.13)') "alpha[deg]", trim_array(1)*180.0/PI
@@ -377,6 +384,8 @@ module sim_m
                 write(*,'(A12,1X,E22.13)') "dr[deg]", trim_array(8)*180.0/PI
                 write(*,'(A12,1X,E22.13)') "tau", trim_array(9)
             else
+                beta_initial = trim_array(2)
+                y_init(10:13) = euler_to_quat([trim_bank_angle, trim_elevation_angle, trim_azimuth_angle])
                 write(*,'(A12,1X,E22.13)') "theta[deg]", trim_elevation_angle*180.0/PI
                 write(*,'(A12,1X,E22.13)') "phi[deg]", trim_bank_angle*180.0/PI
                 write(*,'(A12,1X,E22.13)') "alpha[deg]", trim_array(1)*180.0/PI
@@ -390,20 +399,17 @@ module sim_m
                 write(*,'(A12,1X,E22.13)') "tau", trim_array(9)
                 ! write(*,'(A12,1X,E22.13)') "psi[deg]", trim_azimuth_angle*180.0/PI
             end if  
-
             alpha_initial = trim_array(1)
-            beta_initial = trim_array(2)
             y_init(1) = V_initial*cos(alpha_initial)*cos(beta_initial)
             y_init(2) = V_initial*sin(beta_initial)
             y_init(3) = V_initial*sin(alpha_initial)*cos(beta_initial)
             y_init(4:6) = trim_array(3:5)
-            y_init(10:13) = euler_to_quat(eul0)
             controls(1:4) = trim_array(6:9) 
         end if
         ! connections 
-        ! call jsonx_get(j_main, 'connections', j_connections)
-        ! call jsonx_get(j_connections, 'graphics', j_graphics)
-        ! call graphics%init(j_graphics)
+        call jsonx_get(j_main, 'connections', j_connections)
+        call jsonx_get(j_connections, 'graphics', j_graphics)
+        call graphics%init(j_graphics)
     end subroutine init
 
     function trim_algorithm(H_altitude, newton_tol) result(trim_result)

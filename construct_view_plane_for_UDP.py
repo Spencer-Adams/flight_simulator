@@ -27,10 +27,6 @@ class view_plane:
                 self.ground_grid_number = hlp.parse_dictionary_or_return_default(input, ["scene", "ground", "grid_number"], 0.0)
                 self.ground_grid_scale = hlp.parse_dictionary_or_return_default(input, ["scene", "ground", "grid_scale[ft]"], 0.0)
                 self.ground_grid_color = hlp.parse_dictionary_or_return_default(input, ["scene", "ground", "color"], 0.0)
-                self.states_connection = connection(input["connections"]["receive_states"])
-                self.states = [0]*14
-                self.frame = 0
-                self.fps = 0.0
 
     def camera_set_state(self, camera_location, quat):
         """"""
@@ -74,7 +70,6 @@ class view_plane:
     
     def plot_viewplane_in_2D(self):
         """plots the corners in 2D"""
-        lines_2D_list = []
         for i in range(self.ground_num_lines):
             first_point = self.ground_lines[i,0]
             second_point = self.ground_lines[i,1]
@@ -107,6 +102,8 @@ class view_plane:
                     self.lines2D[3*i+1, :] = projected_point
             # if one of the points is not visible, the line should extend from the visible point to the invisible point, where the point on the viewplane is pb = pc + lambda l_ca from eq. 11.3.2
         self.ax.set_data(self.lines2D[:,0], self.lines2D[:,1])
+
+    
 
     def rotation_matrix_for_body_fixed_to_earth_fixed(self, x_cp, y_cp, z_cp):
         """"""
@@ -211,6 +208,15 @@ if __name__ == "__main__":
     plot_stuff = True
     # make viewplane object (which sets self.distance_observe_to_viewplane, self.observation_angle, and self.viewplane_RA)
     viewplane_object = view_plane("construct_view_plane.json")
+
+    with open(viewplane_object.viewplane_json_file, 'r') as json_handle:
+        file_loc = json.load(json_handle)
+    states_connection = connection(file_loc["connections"]["receive_states"])
+    states = [0]*14
+    frame = 0
+    fps = 0.0
+
+
     viewplane_object.calc_ground_grid()
     # calculate the width of the viewplane using the distance 
     viewplane_object.calc_width_viewplane()
@@ -266,18 +272,21 @@ if __name__ == "__main__":
         ax.axes.set_aspect('equal')
         line, = ax.plot([],[], color = viewplane_object.ground_grid_color)
         plt.show(block = False)
-        while(viewplane_object.camera_location_xyz[0]<0.0):
+        while(frame<1000.0):
             time_start = time.time()
             viewplane_object.plot_viewplane_in_2D()
             fig.canvas.draw()
             fig.canvas.flush_events()
-            # plt.show()
-            viewplane_object.camera_location_xyz[0] += 0.1
+            states = states_connection.recv()
+            # print(states)
+            viewplane_object.camera_location_xyz[:] = states[7:10]
+            viewplane_object.camera_quaternion[:] = states[10:14]
+            # viewplane_object.camera_location_xyz[0] += 0.1
             viewplane_object.camera_set_state(viewplane_object.camera_location_xyz, viewplane_object.camera_quaternion)
             l_ca_array = viewplane_object.calc_l_ca_array(viewplane_object.ground_points)
             lambda_array = viewplane_object.calc_lambda_array(l_ca_array)
             ground_xy_projected_on_viewplane = viewplane_object.calc_xy_projection_onto_viewplane(l_ca_array, lambda_array)
             time_end = time.time()
-            viewplane_object.fps = 1/(time_end-time_start)
-            print("      update hz = ", viewplane_object.fps)
+            fps = 1/(time_end-time_start)
+            print("      update hz = ", fps)
           
