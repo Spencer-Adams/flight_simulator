@@ -15,11 +15,11 @@ class view_plane:
             """This function reads the json file and stores the cylinder specific data in a dictionary"""
             with open(self.viewplane_json_file, 'r') as json_handle:
                 input = json.load(json_handle)
-                # appellian stuff
+                # camera stuff
                 self.distance_observe_to_viewplane = hlp.parse_dictionary_or_return_default(input, ["camera", "view_plane", "distance[ft]"], 1.0)
                 self.observation_angle = np.deg2rad(hlp.parse_dictionary_or_return_default(input, ["camera", "view_plane", "angle[deg]"], 45.0))
                 self.viewplane_RA = hlp.parse_dictionary_or_return_default(input, ["camera", "view_plane", "aspect_ratio"], 2.0)
-                self.camera_location_xyz = np.array(hlp.parse_dictionary_or_return_default(input, ["camera", "location_x_y_z[ft]"], [0.0,0.0,0.0]))
+                self.camera_location_xyz = np.array(hlp.parse_dictionary_or_return_default(input, ["camera", "location_xyz_from_vehicle[ft]"], [0.0,0.0,0.0]))
                 self.camera_orientation_phi_theta_psi = np.array(np.deg2rad(hlp.parse_dictionary_or_return_default(input, ["camera", "orientation_phi_theta_psi[deg]"], [0.0,0.0,0.0])))
                 self.camera_quaternion = hlp.euler_to_quat(self.camera_orientation_phi_theta_psi)
                 # ground grid
@@ -31,6 +31,8 @@ class view_plane:
                 self.states = [0]*14
                 self.frame = 0
                 self.fps = 0.0
+                # aircraft
+                
 
     def camera_set_state(self, camera_location, quat):
         """"""

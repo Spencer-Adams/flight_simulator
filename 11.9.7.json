@@ -113,12 +113,12 @@
             "throttle": 0.812700211571
         },
         "trim" : {
-            "type" : "sct",
+            "type" : "shss",
             "elevation_or_climb" : "climb",
             "elevation_angle[deg]" : 10.0,
             "climb_angle[deg]" : 0.0,
             "type_sct" : {
-                "bank_angle[deg]" : 30.0
+                "bank_angle[deg]" : 0.0
             },
             "type_shss" : {
                 "bank_or_beta" : "beta",

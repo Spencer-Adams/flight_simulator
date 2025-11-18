@@ -1,6 +1,6 @@
 {
     "camera" : {
-        "location_x_y_z[ft]" : [0.0, 0.0, -2000.0],
+        "location_xyz_from_vehicle[ft]" : [-200.0, 0.0, -2000.0],
         "orientation_phi_theta_psi[deg]" : [0.0, 0.0, 0.0],
         "_orientation_phi_theta_psi[deg]" : [5.0, -10.0, 0.0],
         "view_plane" : {
