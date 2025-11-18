@@ -23,9 +23,9 @@
     },
     "scene" : {
         "ground" : {
-                "altitude[ft]" : 0.0,
-                "grid_number" : 150,
-                "grid_scale[ft]" : 150.0,
+                "altitude[ft]" : 1500.0,
+                "grid_number" : 20,
+                "grid_scale[ft]" : 350.0,
                 "color" : "gray"
         }
     }

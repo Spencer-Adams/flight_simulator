@@ -32,7 +32,6 @@ class view_plane:
                 self.frame = 0
                 self.fps = 0.0
                 # aircraft
-                
 
     def camera_set_state(self, camera_location, quat):
         """"""

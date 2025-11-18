@@ -45,7 +45,6 @@ class view_plane:
         # calc_normal_vec_viewplane
         self.calc_normal_vec_viewplane()
 
-
     def calc_width_viewplane(self):
         """Calculates the width of the viewplane based on self.distance_observe_to_viewplane, self.observation_angle"""
         self.width_viewplane = 2*self.distance_observe_to_viewplane*np.tan(self.observation_angle) # Eq. 11.2.1 in flight sim book
@@ -60,7 +59,6 @@ class view_plane:
         self.x_camera_viewplane_corners = np.array([self.distance_observe_to_viewplane, self.distance_observe_to_viewplane, self.distance_observe_to_viewplane, self.distance_observe_to_viewplane])
         self.y_camera_viewplane_corners = 0.5*np.array([-self.width_viewplane, -self.width_viewplane, self.width_viewplane, self.width_viewplane])
         self.z_camera_viewplane_corners = 0.5*np.array([-self.height_viewplane, self.height_viewplane, self.height_viewplane, -self.height_viewplane])
-
         # these coordinates are from Eq. 11.2.3 in the book
     
     def convert_3d_corner_coordinates_into_xy_plane(self):
@@ -174,26 +172,55 @@ class view_plane:
             x_y_array[i] = [Rotation_vec[1], -Rotation_vec[2]]
         self.projected_xy_array = x_y_array
         return x_y_array
-    
+
     def calc_ground_grid(self):
-        """"""
-        ground_num_lines = self.ground_grid_number*2 + 1
-        self.gound_n_lines = 2*ground_num_lines
-        self.ground_points = np.zeros((4*ground_num_lines,3))
-        self.ground_lines = np.zeros((2*ground_num_lines,2), dtype=int)
-        for i in range(ground_num_lines): # x lines
-            self.ground_points[2*i, :] = [-self.ground_grid_scale*self.ground_grid_number, self.ground_grid_scale*(i-self.ground_grid_number), -self.ground_altitude] # left side
-            self.ground_points[2*i+1, :] = [self.ground_grid_scale*self.ground_grid_number, self.ground_grid_scale*(i-self.ground_grid_number), -self.ground_altitude] # right side
-            self.ground_lines[i,0] = 2*i 
-            self.ground_lines[i,1] = 2*i + 1
-        for i in range(ground_num_lines): # y lines 
-            self.ground_points[2*i+2*ground_num_lines,:] = [self.ground_grid_scale*(i-self.ground_grid_number), -self.ground_grid_scale*self.ground_grid_number, -self.ground_altitude] # bottom side
-            self.ground_points[2*i+1+2*ground_num_lines,:] = [self.ground_grid_scale*(i-self.ground_grid_number), self.ground_grid_scale*self.ground_grid_number, -self.ground_altitude] # top side
-            self.ground_lines[i+ground_num_lines,0] = 2*i + 2*ground_num_lines 
-            self.ground_lines[i+ground_num_lines,1] = 2*i + 1 + 2*ground_num_lines
+        scale  = self.ground_grid_scale  # spacing between lines
+        N  = 80#self.ground_grid_number # number of positive/negative steps
+        Z  = -self.ground_altitude
+        # calculate grid number based on ground altitude
+        # if abs(Z-self.camera_location_xyz[2]) < 100.0:
+        #     scale = 150.0
+        # elif 100.0 <= abs(Z-self.camera_location_xyz[2]) < 2000.0:
+        #     scale = 0.10101*abs(Z-self.camera_location_xyz[2]) + 150.0
+        # else: 
+        #     scale = 0.10101*2000.0 + 150.0
+        # Aircraft current x,y
+        cam_x, cam_y = self.camera_location_xyz[:2]
+        # Determine which grid cell aircraft sits in
+        cx = np.floor(cam_x / scale)
+        cy = np.floor(cam_y / scale)
+        # The new "center cell" of the grid
+        center_x = cx * scale
+        center_y = cy * scale
+        # Range of line coordinates
+        offsets = (np.arange(-N, N+1) * scale)
+        # Total number of lines in each direction
+        ground_num_lines = 2 * N + 1
+        self.gound_n_lines = 2 * ground_num_lines
+        # Preallocate (same shape as original code)
+        self.ground_points = np.zeros((4 * ground_num_lines, 3))
+        self.ground_lines  = np.zeros((2 * ground_num_lines, 2), dtype=int)
+        # X-parallel lines (horizontal) — vary in y
+        for i in range(ground_num_lines):
+            y = center_y + offsets[i]
+            x_left  = center_x - N * scale
+            x_right = center_x + N * scale
+            self.ground_points[2*i, :]   = [x_left,  y, Z]
+            self.ground_points[2*i+1, :] = [x_right, y, Z]
+            self.ground_lines[i, :]      = [2*i, 2*i+1]
+        # Y-parallel lines (vertical) — vary in x
+        base = 2 * ground_num_lines
+        for i in range(ground_num_lines):
+            x = center_x + offsets[i]
+            y_bottom = center_y - N * scale
+            y_top    = center_y + N * scale
+            self.ground_points[base + 2*i,   :] = [x, y_bottom, Z]
+            self.ground_points[base + 2*i+1, :] = [x, y_top,    Z]
+            self.ground_lines[ground_num_lines + i, :] = [base + 2*i, base + 2*i + 1]
+        # Final bookkeeping
         self.ground_num_points = len(self.ground_points)
-        self.ground_num_lines = len(self.ground_lines)
-        self.lines2D = np.full((self.ground_num_lines*3,2), None, dtype =object)
+        self.ground_num_lines  = len(self.ground_lines)
+        self.lines2D = np.full((self.ground_num_lines * 3, 2), None, dtype=object)
     
 if __name__ == "__main__":
 
@@ -213,15 +240,13 @@ if __name__ == "__main__":
     states = [0]*14
     frame = 0
     fps = 0.0
-
-
-    viewplane_object.calc_ground_grid()
     # calculate the width of the viewplane using the distance 
     viewplane_object.calc_width_viewplane()
     # calculate height of the view plane based on the width and aspect ratio of the viewplane
     viewplane_object.calc_height_viewplane()
     # Calculate the coordinates of the viewplane corners 
     viewplane_object.camera_set_state(viewplane_object.camera_location_xyz, viewplane_object.camera_quaternion)
+    viewplane_object.calc_ground_grid()
     # viewplane_object.calc_coordinates_of_viewplane_corners()
     l_ca_array = viewplane_object.calc_l_ca_array(viewplane_object.ground_points)
     # l_ca_array = viewplane_object.calc_l_ca_array_vectorized(f_points)
@@ -270,21 +295,45 @@ if __name__ == "__main__":
         ax.axes.set_aspect('equal')
         line, = ax.plot([],[], color = viewplane_object.ground_grid_color)
         plt.show(block = False)
-        while(frame<1000.0):
+        while frame < 10000:
             time_start = time.time()
-            viewplane_object.plot_viewplane_in_2D()
-            fig.canvas.draw()
-            fig.canvas.flush_events()
+            # read new state 
             states = states_connection.recv()
-            # print(states)
             viewplane_object.camera_location_xyz[:] = states[7:10]
             viewplane_object.camera_quaternion[:] = states[10:14]
-            # viewplane_object.camera_location_xyz[0] += 0.1
+            # update camera-dependent viewplane geometry 
             viewplane_object.camera_set_state(viewplane_object.camera_location_xyz, viewplane_object.camera_quaternion)
+            # regenerate ground grid centered on the (new) camera position 
+            viewplane_object.calc_ground_grid()
+            # compute projection for the new grid points 
             l_ca_array = viewplane_object.calc_l_ca_array(viewplane_object.ground_points)
             lambda_array = viewplane_object.calc_lambda_array(l_ca_array)
             ground_xy_projected_on_viewplane = viewplane_object.calc_xy_projection_onto_viewplane(l_ca_array, lambda_array)
+            # draw (plot_viewplane_in_2D expects projected arrays to be ready)
+            viewplane_object.plot_viewplane_in_2D()
+            fig.canvas.draw()
+            fig.canvas.flush_events()
+            # 6) timing / diagnostics
             time_end = time.time()
-            fps = 1/(time_end-time_start)
+            fps = 1.0 / (time_end - time_start) if (time_end - time_start) > 0 else float('inf')
             print("      update hz = ", fps)
+            frame += 1
+
+        # while(frame<1000.0):
+        #     time_start = time.time()
+        #     viewplane_object.plot_viewplane_in_2D()
+        #     fig.canvas.draw()
+        #     fig.canvas.flush_events()
+        #     states = states_connection.recv()
+        #     # print(states)
+        #     viewplane_object.camera_location_xyz[:] = states[7:10]
+        #     viewplane_object.camera_quaternion[:] = states[10:14]
+        #     # viewplane_object.camera_location_xyz[0] += 0.1
+        #     viewplane_object.camera_set_state(viewplane_object.camera_location_xyz, viewplane_object.camera_quaternion)
+        #     l_ca_array = viewplane_object.calc_l_ca_array(viewplane_object.ground_points)
+        #     lambda_array = viewplane_object.calc_lambda_array(l_ca_array)
+        #     ground_xy_projected_on_viewplane = viewplane_object.calc_xy_projection_onto_viewplane(l_ca_array, lambda_array)
+        #     time_end = time.time()
+        #     fps = 1/(time_end-time_start)
+        #     print("      update hz = ", fps)
           
