@@ -1,6 +1,6 @@
 {
     "camera" : {
-        "location_xyz_from_vehicle[ft]" : [-200.0, 0.0, -2000.0],
+        "location_xyz_from_vehicle[ft]" : [-40.0, 0.0, -5.0],
         "orientation_phi_theta_psi[deg]" : [0.0, 0.0, 0.0],
         "_orientation_phi_theta_psi[deg]" : [5.0, -10.0, 0.0],
         "view_plane" : {
@@ -19,14 +19,28 @@
             "wait_for_data": true,
             "verbose": false,
             "port_ID": 50000
+        },
+        "send_states": {
+            "type" : "send",
+            "number_of_values" : 4,
+            "refresh_rate" : 50,
+            "channel_type" : "udp",
+            "double_precision": true,
+            "wait_for_data": true,
+            "verbose": false,
+            "port_ID": 50001
         }
     },
     "scene" : {
         "ground" : {
-                "altitude[ft]" : 1500.0,
+                "altitude[ft]" : 0.0,
                 "grid_number" : 20,
-                "grid_scale[ft]" : 350.0,
+                "grid_scale[ft]" : 250.0,
                 "color" : "gray"
+        },
+        "vehicle" : {
+            "vtk_file" : "F16_coarse.vtk",
+            "location_xyz[ft]" : [0.0, 0.0, -2000.0]
         }
     }
 }

@@ -1,0 +1,79 @@
+{
+    "end_time[s]" : 60.0,
+    "aileron" : {
+        "rollRateCommand": 0.0,
+        "P" : -0.314159,
+        "I" : -0.38397,
+        "D" : -0.0004
+    },
+    "phi" : {
+        "rollCommand" : 0.0,
+        "P" : 2.2,
+        "I" : 0.0,
+        "D" : 0.1
+    },
+    "elevator" : {
+        "pitchRateCommand": 0.0,
+        "P" : -0.41887902,
+        "I" : -1.22173048,
+        "D" : -0.000296706
+    },
+    "theta" : {
+        "pitchCommand" : 0.0,
+        "P" : 2.2,
+        "I" : 0.0,
+        "D" : 0.1
+    },
+    "rudder" : {
+        "yawRateCommand": 0.0,
+        "P" : -0.6981317,
+        "I" : -3.945,
+        "D" : -0.000296706
+    },
+    "psi" : {
+        "P" : 2.2,
+        "I" : 0.0,
+        "D" : 0.1
+    },
+    "throttle" : {
+        "u_command": 600.0,
+        "P" : 0.1,
+        "I" : 0.001,
+        "D" : 0.0
+    },
+    "interface" : {
+        "controller_to_physics" : {
+            "read_or_write" : "write",
+            "message_type" : -1,
+            "array_length" : 4,
+            "message_type_options" : ["-1 = float array", "# = mavlink type code"],
+            "port_type" : "UDP",
+            "port_ID" : 9600,
+            "IP" : "127.0.0.1",
+            "refresh_rate[Hz]" : 100,
+            "verbose" : false
+        },
+        "pilot_to_controller" : {
+            "read_or_write" : "read",
+            "message_type" : 1,
+            "message_type_options" : ["-1 = float array", "# = mavlink type code", "1 = USB array"],
+            "controller_type" : 4,
+            "controller_type_options" : ["1 = T16000M Stick", "2 = Cabled RC", "3 = Saitek Stick", "4 = Keyboard"],
+            "array_length" : 8,
+            "port_type" : "USB",
+            "refresh_rate[Hz]" : 10000,
+            "verbose" : false
+        },
+        "physics_to_controller" : {
+            "read_or_write" : "read",
+            "message_type" : -1,
+            "array_length" : 17,
+            "message_type_options" : ["-1 = float array", "# = mavlink type code"],
+            "port_type" : "UDP",
+            "port_ID" : 9500,
+            "IP" : "127.0.0.1",
+            "refresh_rate[Hz]" : 100,
+            "verbose" : false
+        }
+    }
+}

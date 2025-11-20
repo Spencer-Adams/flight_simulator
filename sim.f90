@@ -16,14 +16,15 @@ module sim_m
     real :: FM(6)
     real :: y_init(13)
     real :: controls(4)
+    real :: controls_from_connect(4)
     real :: V_initial, alpha_initial, beta_initial
     real :: rho0,Z_temp,T_temp,P_temp,a_temp,mu_temp
     real :: trim_state(13)
-    logical :: rk4_verbose, is_trim_sideslip_angle
+    logical :: rk4_verbose, is_trim_sideslip_angle, is_use_controls
     real :: trim_elevation_angle, trim_sideslip_angle, trim_bank_angle
     real :: trim_azimuth_angle, p_wind, trim_climb_angle
 
-    type(connection) :: graphics
+    type(connection) :: graphics, connect_controls 
     type(json_value), pointer :: j_main
 
     ! aero coefficients 
@@ -70,7 +71,7 @@ module sim_m
             dt = time2-time1 
             write(*,*) "Dt = ", dt
             if (dt == 0.0) then 
-                write(*,*) "THE DT IS EXACTLY ZERO MY GUY!!!!"
+                write(*,*) "THE DT IS EXACTLY ZERO!!!"
             end if 
             y = y_init 
             t = 0.0
@@ -92,6 +93,9 @@ module sim_m
         integrated_time = 0.0
 
         do while(t<tf) ! while altitude is greater than 0 ft (altitude is positive going down in our coordinate systems) or time is less than final time
+            if (is_use_controls) then 
+                controls = connect_controls%recv()
+            end if
             y1 = runge_kutta(t,y,dt)
             call quat_norm(y1(10:13))
             y = y1
@@ -200,7 +204,7 @@ module sim_m
     subroutine init(filename)
         implicit none 
         character(100), intent(in) :: filename
-        type(json_value), pointer :: j_connections, j_graphics
+        type(json_value), pointer :: j_connections, j_graphics, j_controls
         ! type2, intent(out) ::  arg2
         ! call get_command_argument(1,filename)
         call std_atm_English(0.0,Z_temp,T_temp,P_temp,rho0,a_temp,mu_temp)
@@ -267,6 +271,7 @@ module sim_m
         call jsonx_get(j_main, "vehicle.aerodynamics.coefficients.Cn.alpha_aileron", Cnada)
         call jsonx_get(j_main, "vehicle.aerodynamics.coefficients.Cn.rudder", Cndr)
         ! initial conditions
+        call jsonx_get(j_main, "connections.controls.is_use", is_use_controls)
         call mass_inertia() ! computes mass, inertia, and gyroscopic properties of a thing which is weighed at a geopotential altitude of exactly zero. 
         y_init = 0.0
         call jsonx_get(j_main, "initial.time[sec]", t, 0.0)
@@ -410,6 +415,8 @@ module sim_m
         call jsonx_get(j_main, 'connections', j_connections)
         call jsonx_get(j_connections, 'graphics', j_graphics)
         call graphics%init(j_graphics)
+        call jsonx_get(j_connections, 'controls', j_controls)
+        call connect_controls%init(j_controls)
     end subroutine init
 
     function trim_algorithm(H_altitude, newton_tol) result(trim_result)
@@ -782,7 +789,7 @@ module sim_m
         real :: sa, ca, sb, cb
         real :: Z, T, P, rho, a, mu
         ahat = 0.0
-
+        !!!! receive controls from python script here !!!!
         da = controls(1)
         de = controls(2)
         dr = controls(3)

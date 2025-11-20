@@ -18,6 +18,16 @@
             "refresh_rate": 40,
             "channel_type": "udp",
             "port_ID": 50000
+        },
+        "controls" : {
+            "is_use" : true,
+            "type" : "receive",
+            "number_of_values": 4,
+            "double_precision": true,
+            "wait_for_input" : false,
+            "refresh_rate": 100,
+            "channel_type": "udp",
+            "port_ID": 50001
         }
     },
     "vehicle" : {
@@ -99,7 +109,7 @@
         }
     },
     "initial": {
-        "airspeed[ft/sec]" : 520.0,
+        "airspeed[ft/sec]" : 220.0,
         "altitude[ft]" : 2000.0,
         "Euler_angles[deg]" : [0.0,0.0,0.0],
         "type" : "trim",
@@ -113,12 +123,12 @@
             "throttle": 0.812700211571
         },
         "trim" : {
-            "type" : "shss",
+            "type" : "sct",
             "elevation_or_climb" : "climb",
             "elevation_angle[deg]" : 10.0,
             "climb_angle[deg]" : 0.0,
             "type_sct" : {
-                "bank_angle[deg]" : 0.0
+                "bank_angle[deg]" : 40.0
             },
             "type_shss" : {
                 "bank_or_beta" : "beta",

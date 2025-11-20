@@ -1,4 +1,6 @@
-import numpy as np 
+import numpy as np
+import sys
+import pygame 
 from connection_m import connection
 import matplotlib.pyplot as plt 
 import json 
@@ -19,7 +21,8 @@ class view_plane:
                 self.distance_observe_to_viewplane = hlp.parse_dictionary_or_return_default(input, ["camera", "view_plane", "distance[ft]"], 1.0)
                 self.observation_angle = np.deg2rad(hlp.parse_dictionary_or_return_default(input, ["camera", "view_plane", "angle[deg]"], 45.0))
                 self.viewplane_RA = hlp.parse_dictionary_or_return_default(input, ["camera", "view_plane", "aspect_ratio"], 2.0)
-                self.camera_location_xyz = np.array(hlp.parse_dictionary_or_return_default(input, ["camera", "location_x_y_z[ft]"], [0.0,0.0,0.0]))
+                self.camera_location_xyz = np.array(hlp.parse_dictionary_or_return_default(input, ["camera", "location_xyz_from_vehicle[ft]"], [-200.0,0.0,0.0]))
+                self.original_camera_location_xyz = np.array(self.camera_location_xyz)
                 self.camera_orientation_phi_theta_psi = np.array(np.deg2rad(hlp.parse_dictionary_or_return_default(input, ["camera", "orientation_phi_theta_psi[deg]"], [0.0,0.0,0.0])))
                 self.camera_quaternion = hlp.euler_to_quat(self.camera_orientation_phi_theta_psi)
                 # ground grid
@@ -27,6 +30,60 @@ class view_plane:
                 self.ground_grid_number = hlp.parse_dictionary_or_return_default(input, ["scene", "ground", "grid_number"], 0.0)
                 self.ground_grid_scale = hlp.parse_dictionary_or_return_default(input, ["scene", "ground", "grid_scale[ft]"], 0.0)
                 self.ground_grid_color = hlp.parse_dictionary_or_return_default(input, ["scene", "ground", "color"], 0.0)
+                # vehicle stuff 
+                self.vehicle_file = hlp.parse_dictionary_or_return_default(input, ["scene", "vehicle", "vtk_file"], "F16_coarse.vtk")
+                self.vehicle_location_xyz = np.array(hlp.parse_dictionary_or_return_default(input, ["scene", "vehicle", "location_xyz[ft]"], [0.0,0.0,-2000.0]))
+                self.camera_location_xyz += self.vehicle_location_xyz
+                print("Vehicle Location\n", self.vehicle_location_xyz)
+                print("Camera Location\n", self.camera_location_xyz)
+                self.ground_line = []#ax.plot([], [], color=viewplane_object.ground_grid_color)
+                self.vehicle_line = []#ax.plot([], [], color='black')  # or any color
+    
+    def parse_vtk(self):
+        filename = self.vehicle_file
+        with open(filename, 'r') as f:
+            lines = f.readlines()
+        points_idx = None
+        for i, line in enumerate(lines):
+            if line.startswith("POINTS"):
+                points_idx = i
+                break
+        if points_idx is None:
+            raise RuntimeError("VTK file missing POINTS section")
+        # points
+        parts = lines[points_idx].split()
+        n_points = int(parts[1])
+        vehicle_points = np.zeros((n_points, 3))
+        for i in range(n_points):
+            x, y, z = map(float, lines[points_idx + 1 + i].split())
+            vehicle_points[i] = [x, y, z]
+        # lines 
+        lines_idx = None
+        for i, line in enumerate(lines):
+            if line.startswith("LINES"):
+                lines_idx = i
+                break
+        if lines_idx is None:
+            raise RuntimeError("VTK file missing LINES section")
+        parts = lines[lines_idx].split()
+        n_lines = int(parts[1])
+        vehicle_lines = np.zeros((n_lines, 2), dtype=int)
+        for k in range(n_lines):
+            # 2 i j
+            row = lines[lines_idx + 1 + k].split()
+            if int(row[0]) != 2:
+                raise RuntimeError("This parser only supports 2-point LINES entries (2 i j)")
+            i1 = int(row[1])
+            i2 = int(row[2])
+            vehicle_lines[k] = [i1, i2]
+        vehicle_points += self.vehicle_location_xyz
+        self.vehicle_points = vehicle_points
+        # self.vehicle_points += 
+        self.vehicle_lines  = vehicle_lines
+        self.vehicle_num_points = n_points
+        self.vehicle_num_lines  = n_lines
+        # 2D projected version — same style as ground grid
+        self.vehicle_lines2D = np.full((self.vehicle_num_lines * 3, 2), None, dtype=object)
 
     def camera_set_state(self, camera_location, quat):
         """"""
@@ -66,40 +123,44 @@ class view_plane:
         self.x_2D_corners = self.y_camera_viewplane_corners
         self.y_2D_corners = -self.z_camera_viewplane_corners
     
-    def plot_viewplane_in_2D(self):
+    def plot_viewplane_in_2D(self, lambda_array, points, lines, num_lines, projected_xy_array, lines2D, line_type):
         """plots the corners in 2D"""
-        for i in range(self.ground_num_lines):
-            first_point = self.ground_lines[i,0]
-            second_point = self.ground_lines[i,1]
-            if self.lambda_array[first_point] > 0 and self.lambda_array[second_point] > 0:
-                self.lines2D[3*i, :] = self.projected_xy_array[first_point,:]
-                self.lines2D[3*i+1,:] = self.projected_xy_array[second_point,:]
-            elif self.lambda_array[first_point] < 0 and self.lambda_array[second_point] > 0:
-                lca = self.ground_points[second_point]  - self.ground_points[first_point] 
+        for i in range(num_lines):
+            first_point = lines[i,0]
+            second_point = lines[i,1]
+            if lambda_array[first_point] > 0 and lambda_array[second_point] > 0:
+                lines2D[3*i, :] = projected_xy_array[first_point,:]
+                lines2D[3*i+1,:] = projected_xy_array[second_point,:]
+            elif lambda_array[first_point] < 0 and lambda_array[second_point] > 0:
+                lca = points[second_point]  - points[first_point] 
                 if not np.isclose(np.dot(lca, self.norm_viewplane), 0.0, atol=1e-8): # prevents division by zero
-                    lamb =  np.dot(self.P0 - self.ground_points[first_point], self.norm_viewplane) / np.dot(lca, self.norm_viewplane) # this is lambda from eq. 11.3.5. The numerator has to be recomputed for the new Lca
-                    pb = self.ground_points[first_point] + lamb * lca                         # 3D intersection point on plane
+                    lamb =  np.dot(self.P0 - points[first_point], self.norm_viewplane) / np.dot(lca, self.norm_viewplane) # this is lambda from eq. 11.3.5. The numerator has to be recomputed for the new Lca
+                    pb = points[first_point] + lamb * lca                         # 3D intersection point on plane
                     lca_pb = pb - self.camera_location_xyz   # 3D vector from camera to pb
                     lambda_pb = self.lambda_numerator/np.dot(lca_pb, self.norm_viewplane)
                     Rotation_vec = self.rotation_matrix_earth_to_body(lambda_pb, lca_pb) # 1.0 because we want the full vector from camera to pb
                     projected_point = np.array([Rotation_vec[1], -Rotation_vec[2]])
                     # set the visible end to the intersection point, the other end to the visible point's projection
-                    self.lines2D[3*i, :] = projected_point
-                    self.lines2D[3*i+1, :] = self.projected_xy_array[second_point, :]
-            elif self.lambda_array[first_point] > 0 and self.lambda_array[second_point] < 0:
-                lca = self.ground_points[second_point]  - self.ground_points[first_point] 
+                    lines2D[3*i, :] = projected_point
+                    lines2D[3*i+1, :] = projected_xy_array[second_point, :]
+            elif lambda_array[first_point] > 0 and lambda_array[second_point] < 0:
+                lca = points[second_point]  - points[first_point] 
                 if not np.isclose(np.dot(lca, self.norm_viewplane), 0.0, atol=1e-8): # prevents division by zero
-                    lamb =  np.dot(self.P0 - self.ground_points[first_point], self.norm_viewplane) / np.dot(lca, self.norm_viewplane) # this is lambda from eq. 11.3.5. The numerator has to be recomputed for the new Lca
-                    pb = self.ground_points[first_point] + lamb * lca # 3D intersection point on plane
+                    lamb =  np.dot(self.P0 - points[first_point], self.norm_viewplane) / np.dot(lca, self.norm_viewplane) # this is lambda from eq. 11.3.5. The numerator has to be recomputed for the new Lca
+                    pb = points[first_point] + lamb * lca # 3D intersection point on plane
                     lca_pb = pb - self.camera_location_xyz   # 3D vector from camera to pb
                     lambda_pb = self.lambda_numerator/np.dot(lca_pb, self.norm_viewplane)
                     Rotation_vec = self.rotation_matrix_earth_to_body(lambda_pb, lca_pb) # 1.0 because we want the full vector from camera to pb
                     projected_point = np.array([Rotation_vec[1], -Rotation_vec[2]])
                     # set the visible end to the visible point's projection, the other end to the intersection point
-                    self.lines2D[3*i, :] = self.projected_xy_array[first_point, :]
-                    self.lines2D[3*i+1, :] = projected_point
-            # if one of the points is not visible, the line should extend from the visible point to the invisible point, where the point on the viewplane is pb = pc + lambda l_ca from eq. 11.3.2
-        self.ax.set_data(self.lines2D[:,0], self.lines2D[:,1])
+                    lines2D[3*i, :] = projected_xy_array[first_point, :]
+                    lines2D[3*i+1, :] = projected_point
+        line_type.set_data(lines2D[:,0], lines2D[:,1])
+        # if overwrite_data:
+        #     self.ground_line.set_data(lines2D[:,0], lines2D[:,1])
+        # else:
+        #     self.vehicle_line.set_data(lines2D[:,0], lines2D[:,1])
+            
 
     def rotation_matrix_for_body_fixed_to_earth_fixed(self, x_cp, y_cp, z_cp):
         """"""
@@ -157,11 +218,9 @@ class view_plane:
     
     def calc_lambda_array(self, array_of_lca):
         """"""
-        self.calc_lambda_numerator()
         lambda_array = np.zeros(len(array_of_lca))
         for i in range(len(array_of_lca)):
             lambda_array[i] = self.lambda_numerator/(self.calc_lambda_denominator(array_of_lca[i]))
-        self.lambda_array = lambda_array
         return lambda_array
     
     def calc_xy_projection_onto_viewplane(self, array_of_lca, array_lambda):
@@ -170,12 +229,11 @@ class view_plane:
         for i in range(len(array_of_lca)):
             Rotation_vec = self.rotation_matrix_earth_to_body(array_lambda[i], array_of_lca[i])
             x_y_array[i] = [Rotation_vec[1], -Rotation_vec[2]]
-        self.projected_xy_array = x_y_array
         return x_y_array
 
     def calc_ground_grid(self):
         scale  = self.ground_grid_scale  # spacing between lines
-        N  = 80#self.ground_grid_number # number of positive/negative steps
+        N  = self.ground_grid_number # number of positive/negative steps
         Z  = -self.ground_altitude
         # calculate grid number based on ground altitude
         # if abs(Z-self.camera_location_xyz[2]) < 100.0:
@@ -225,34 +283,49 @@ class view_plane:
 if __name__ == "__main__":
 
     np.set_printoptions(formatter={'float': lambda x: f"{x:.12g}"})
-    x_f_array = np.array([-10 , 10 , -10 , 10 , -10 , 10 , -10 , 10 , -10 , 10 , -10 , -10 , -5 , -5 , 0 , 0 , 5 , 5 , 10 , 10])
-    y_f_array = np.array([-10 , -10 , -5 , -5 , 0 , 0 , 5 , 5 , 10 , 10 , -10 , 10 , -10 , 10 , -10 , 10 , -10 , 10 , -10 , 10])
-    z_f_array = np.array([0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0])
-    f_points = np.column_stack((x_f_array, y_f_array, z_f_array))
+    # x_f_array = np.array([-10 , 10 , -10 , 10 , -10 , 10 , -10 , 10 , -10 , 10 , -10 , -10 , -5 , -5 , 0 , 0 , 5 , 5 , 10 , 10])
+    # y_f_array = np.array([-10 , -10 , -5 , -5 , 0 , 0 , 5 , 5 , 10 , 10 , -10 , 10 , -10 , 10 , -10 , 10 , -10 , 10 , -10 , 10])
+    # z_f_array = np.array([0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0])
+    # f_points = np.column_stack((x_f_array, y_f_array, z_f_array))
     print_stuff = False
     plot_stuff = True
     # make viewplane object (which sets self.distance_observe_to_viewplane, self.observation_angle, and self.viewplane_RA)
-    viewplane_object = view_plane("construct_view_plane.json")
+    viewplane_object = view_plane("graphics.json")
 
     with open(viewplane_object.viewplane_json_file, 'r') as json_handle:
         file_loc = json.load(json_handle)
     states_connection = connection(file_loc["connections"]["receive_states"])
+    controls_connection = connection(file_loc["connections"]["send_states"])
+    pygame.init()
+    pygame.joystick.init()
+    joy = pygame.joystick.Joystick(0)
+    joy.init()
+    ## axis 0: Rudder
+    ## axis 1: Throttle
+    ## axis 2: Aileron 
+    ## axis 3: elevator
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit() 
     states = [0]*14
     frame = 0
     fps = 0.0
+    # parse vehicle vtk
+    viewplane_object.parse_vtk()
     # calculate the width of the viewplane using the distance 
     viewplane_object.calc_width_viewplane()
     # calculate height of the view plane based on the width and aspect ratio of the viewplane
     viewplane_object.calc_height_viewplane()
-    # Calculate the coordinates of the viewplane corners 
     viewplane_object.camera_set_state(viewplane_object.camera_location_xyz, viewplane_object.camera_quaternion)
     viewplane_object.calc_ground_grid()
-    # viewplane_object.calc_coordinates_of_viewplane_corners()
     l_ca_array = viewplane_object.calc_l_ca_array(viewplane_object.ground_points)
-    # l_ca_array = viewplane_object.calc_l_ca_array_vectorized(f_points)
+    l_ca_vehicle_array = viewplane_object.calc_l_ca_array(viewplane_object.vehicle_points)
+    viewplane_object.calc_lambda_numerator()
     lambda_array = viewplane_object.calc_lambda_array(l_ca_array)
-    # lambda_array = viewplane_object.calc_lambda_vectorized(l_ca_array)
+    lambda_vehicle_array = viewplane_object.calc_lambda_array(l_ca_vehicle_array)
     ground_xy_projected_on_viewplane = viewplane_object.calc_xy_projection_onto_viewplane(l_ca_array, lambda_array)
+    vehicle_xy_projected_on_viewplane = viewplane_object.calc_xy_projection_onto_viewplane(l_ca_vehicle_array, lambda_vehicle_array)
 
     if print_stuff:
         print("")
@@ -277,63 +350,54 @@ if __name__ == "__main__":
         print("lambda_array = \n", lambda_array)
         print("ground_xy_projected_on_viewplane = \n", ground_xy_projected_on_viewplane)
         print("")
-    # plot everything 
     if plot_stuff:
-        fig = plt.figure(figsize = (viewplane_object.viewplane_RA*5.0,5.0))
+        fig = plt.figure(figsize=(viewplane_object.viewplane_RA*5.0, 5.0))
         ax = fig.add_subplot(111)
-        viewplane_object.ax, = ax.plot([],[], color = viewplane_object.ground_grid_color)
-        plt.subplots_adjust(top = 1.0, bottom = 0.0, left = 0.0, right = 1.0)
+        # Store the Axes object
+        viewplane_object.ax = ax
+        plt.subplots_adjust(top=1, bottom=0, left=0, right=1)
         plt.axis('off')
-        x_corners_for_plotting = np.array([viewplane_object.x_2D_corners[0], viewplane_object.x_2D_corners[1], viewplane_object.x_2D_corners[2], viewplane_object.x_2D_corners[3], viewplane_object.x_2D_corners[0]])
-        y_corners_for_plotting = np.array([viewplane_object.y_2D_corners[0], viewplane_object.y_2D_corners[1], viewplane_object.y_2D_corners[2], viewplane_object.y_2D_corners[3], viewplane_object.y_2D_corners[0]])
-        ax.axes.set_xlim(x_corners_for_plotting[0], x_corners_for_plotting[2])
-        ax.axes.set_ylim(y_corners_for_plotting[1], y_corners_for_plotting[0])
-        ax.axes.xaxis.set_ticklabels([])
-        ax.axes.yaxis.set_ticklabels([])
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.axes.set_aspect('equal')
-        line, = ax.plot([],[], color = viewplane_object.ground_grid_color)
+        # Create separate line handles
+        viewplane_object.ground_line, = ax.plot([], [], color=viewplane_object.ground_grid_color)
+        viewplane_object.vehicle_line, = ax.plot([], [], color='black')  # or any color
+        ax.set_xlim(viewplane_object.x_2D_corners[0], viewplane_object.x_2D_corners[2])
+        ax.set_ylim(viewplane_object.y_2D_corners[1], viewplane_object.y_2D_corners[0])
+        ax.set_xticks([]); ax.set_yticks([])
+        ax.set_aspect('equal')
+        # Draw ground
         plt.show(block = False)
-        while frame < 10000:
+        viewplane_object.plot_viewplane_in_2D(lambda_array,viewplane_object.ground_points,viewplane_object.ground_lines,viewplane_object.ground_num_lines,ground_xy_projected_on_viewplane,viewplane_object.lines2D,line_type = viewplane_object.ground_line)
+        # Draw vehicle
+        viewplane_object.plot_viewplane_in_2D(lambda_vehicle_array,viewplane_object.vehicle_points,viewplane_object.vehicle_lines,viewplane_object.vehicle_num_lines,vehicle_xy_projected_on_viewplane,viewplane_object.vehicle_lines2D,line_type = viewplane_object.vehicle_line)
+        # plt.show()
+        while(frame<1000.0):
             time_start = time.time()
-            # read new state 
-            states = states_connection.recv()
-            viewplane_object.camera_location_xyz[:] = states[7:10]
-            viewplane_object.camera_quaternion[:] = states[10:14]
-            # update camera-dependent viewplane geometry 
-            viewplane_object.camera_set_state(viewplane_object.camera_location_xyz, viewplane_object.camera_quaternion)
-            # regenerate ground grid centered on the (new) camera position 
-            viewplane_object.calc_ground_grid()
-            # compute projection for the new grid points 
-            l_ca_array = viewplane_object.calc_l_ca_array(viewplane_object.ground_points)
-            lambda_array = viewplane_object.calc_lambda_array(l_ca_array)
-            ground_xy_projected_on_viewplane = viewplane_object.calc_xy_projection_onto_viewplane(l_ca_array, lambda_array)
-            # draw (plot_viewplane_in_2D expects projected arrays to be ready)
-            viewplane_object.plot_viewplane_in_2D()
+            viewplane_object.plot_viewplane_in_2D(lambda_array, viewplane_object.ground_points, viewplane_object.ground_lines, viewplane_object.ground_num_lines, ground_xy_projected_on_viewplane, viewplane_object.lines2D, viewplane_object.ground_line)
+            # viewplane_object.plot_viewplane_in_2D(lambda_vehicle_array, viewplane_object.vehicle_points, viewplane_object.vehicle_lines, viewplane_object.vehicle_num_lines, vehicle_xy_projected_on_viewplane, viewplane_object.vehicle_lines2D)
             fig.canvas.draw()
             fig.canvas.flush_events()
-            # 6) timing / diagnostics
+            Controls = np.array([
+                np.round(-joy.get_axis(2)*0.375246,1),  # da -> val * 21.5 * Pi/180
+                np.round(-joy.get_axis(3)*0.436332,1),  # de -> val * 25.0 * Pi/180
+                np.round(joy.get_axis(0)*0.523599,1),  # dr -> val * 30.0 * Pi/180
+                np.round(-0.5*joy.get_axis(1)+0.5,1),  # tau -> val * -0.5 + 0.5 so that joystick goes from 0 to 1 when deflected from bottom to top
+            ])
+            Controls_sent = controls_connection.send(Controls)
+            states = states_connection.recv()
+            # print(states)
+            # viewplane_object.vehicle_location_xyz[:] = states[7:10]
+            viewplane_object.camera_location_xyz[:] = states[7:10] #+ viewplane_object.original_camera_location_xyz
+            viewplane_object.camera_quaternion[:] = states[10:14]
+            # viewplane_object.camera_location_xyz[0] += 0.1
+            viewplane_object.camera_set_state(viewplane_object.camera_location_xyz, viewplane_object.camera_quaternion)
+            viewplane_object.calc_ground_grid()
+            l_ca_array = viewplane_object.calc_l_ca_array(viewplane_object.ground_points)
+            # l_ca_vehicle_array = viewplane_object.calc_l_ca_array(viewplane_object.vehicle_points)
+            viewplane_object.calc_lambda_numerator()
+            lambda_array = viewplane_object.calc_lambda_array(l_ca_array)
+            # lambda_vehicle_array = viewplane_object.calc_lambda_array(l_ca_vehicle_array)
+            ground_xy_projected_on_viewplane = viewplane_object.calc_xy_projection_onto_viewplane(l_ca_array, lambda_array)
             time_end = time.time()
-            fps = 1.0 / (time_end - time_start) if (time_end - time_start) > 0 else float('inf')
+            fps = 1/(time_end-time_start)
             print("      update hz = ", fps)
-            frame += 1
-
-        # while(frame<1000.0):
-        #     time_start = time.time()
-        #     viewplane_object.plot_viewplane_in_2D()
-        #     fig.canvas.draw()
-        #     fig.canvas.flush_events()
-        #     states = states_connection.recv()
-        #     # print(states)
-        #     viewplane_object.camera_location_xyz[:] = states[7:10]
-        #     viewplane_object.camera_quaternion[:] = states[10:14]
-        #     # viewplane_object.camera_location_xyz[0] += 0.1
-        #     viewplane_object.camera_set_state(viewplane_object.camera_location_xyz, viewplane_object.camera_quaternion)
-        #     l_ca_array = viewplane_object.calc_l_ca_array(viewplane_object.ground_points)
-        #     lambda_array = viewplane_object.calc_lambda_array(l_ca_array)
-        #     ground_xy_projected_on_viewplane = viewplane_object.calc_xy_projection_onto_viewplane(l_ca_array, lambda_array)
-        #     time_end = time.time()
-        #     fps = 1/(time_end-time_start)
-        #     print("      update hz = ", fps)
-          
+            # print("        aileron = ", Controls[0]*180/np.pi, " elevator = ", Controls[1]*180/np.pi, " rudder = ", Controls[2]*180/np.pi, " throttle = ", Controls[3], "update hz = ", fps)

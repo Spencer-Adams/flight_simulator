@@ -28,6 +28,9 @@ class view_plane:
                 self.ground_grid_scale = hlp.parse_dictionary_or_return_default(input, ["scene", "ground", "grid_scale[ft]"], 0.0)
                 self.ground_grid_color = hlp.parse_dictionary_or_return_default(input, ["scene", "ground", "color"], 0.0)
 
+
+
+
     def camera_set_state(self, camera_location, quat):
         """"""
         self.camera_location_xyz = camera_location
