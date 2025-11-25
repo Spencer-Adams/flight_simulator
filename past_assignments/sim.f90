@@ -20,12 +20,9 @@ module sim_m
     real :: V_initial, alpha_initial, beta_initial
     real :: rho0,Z_temp,T_temp,P_temp,a_temp,mu_temp
     real :: trim_state(13)
-    logical :: rk4_verbose, is_trim_sideslip_angle, is_use_controls, is_use_controller
+    logical :: rk4_verbose, is_trim_sideslip_angle, is_use_controls
     real :: trim_elevation_angle, trim_sideslip_angle, trim_bank_angle
     real :: trim_azimuth_angle, p_wind, trim_climb_angle
-    real, allocatable :: rollRateControl(:), bankAngleControl(:)
-    real, allocatable :: pitchRateControl(:), elevationAngleControl(:)
-    real, allocatable :: yawRateControl(:), velocityControl(:)
 
     type(connection) :: graphics, connect_controls 
     type(json_value), pointer :: j_main
@@ -96,7 +93,6 @@ module sim_m
         integrated_time = 0.0
 
         do while(t<tf) ! while altitude is greater than 0 ft (altitude is positive going down in our coordinate systems) or time is less than final time
-            ! write(*,*) "dt", dt
             if (is_use_controls) then 
                 controls = connect_controls%recv()
             end if
@@ -415,14 +411,6 @@ module sim_m
             y_init(4:6) = trim_array(3:5)
             controls(1:4) = trim_array(6:9) 
         end if
-        ! controller stuff 
-        call jsonx_get(j_main, "controller.is_use_controller", is_use_controller)
-        call jsonx_get(j_main, "controller.rollRateControl", rollRateControl,0.0,4)
-        call jsonx_get(j_main, "controller.bankAngleControl", bankAngleControl,0.0,4) 
-        call jsonx_get(j_main, "controller.pitchRateControl", pitchRateControl,0.0,4) 
-        call jsonx_get(j_main, "controller.elevationAngleControl", elevationAngleControl,0.0,4)
-        call jsonx_get(j_main, "controller.yawRateControl", yawRateControl,0.0,4) 
-        call jsonx_get(j_main, "controller.velocityControl", velocityControl,0.0,4)
         ! connections 
         call jsonx_get(j_main, 'connections', j_connections)
         call jsonx_get(j_connections, 'graphics', j_graphics)
@@ -634,7 +622,6 @@ module sim_m
     end function create_jacobian
 
     function calc_theta_from_climb_angle(climb_angle, u, v, w, phi) result(return_theta)
-        implicit none 
         real, intent(in) :: climb_angle, u, v, w, phi
         real :: return_theta, error_for_elevation, temp_lhs, temp_rhs_1, temp_rhs_2
         real :: parenth_temp, S_theta_1, S_theta_2, theta_1, theta_2
@@ -847,51 +834,5 @@ module sim_m
             write(*,*) FM
         end if
     end subroutine pseudo_aero
-
-    ! subroutine get_errors(controllerP, controllerI, controllerD, dt, desired_value, & 
-    !     actual_value, gainP, gainI, gainD, integral, error) 
-    !     implicit none 
-    !     real, intent(inout) :: integral, error
-    !     real, intent(inout) :: controllerP, controllerI, controllerD
-    !     real, intent(in) :: desired_value, actual_value
-    !     real, intent(in) :: gainP, gainI, gainD, dt
-    !     real :: newError 
-    !     newError = desired_value - actual_value
-    !     controllerP = gainP*newError
-    !     integral = integral + 0.5 * (newError + error) * dt
-
-    !     if (integral > 0.5) then
-    !         integral = 0.5
-    !     else if (integral <-0.5) then 
-    !         integral = -0.5
-    !     end if
-
-    !     controllerI = gainI * integral 
-    !     controllerD = gainD * (newError-error)/dt
-    !     error = newError
-    ! end subroutine get_errors
-
-    ! subroutine get_command_deflect(controllerP, controllerI, controllerD, dt, desired_value, & 
-    !     actual_value, gainP, gainI, gainD, integral, error) 
-    !     implicit none 
-    !     real, intent(inout) :: integral, error
-    !     real, intent(inout) :: controllerP, controllerI, controllerD
-    !     real, intent(in) :: desired_value, actual_value
-    !     real, intent(in) :: gainP, gainI, gainD, dt
-    !     real :: newError 
-    !     newError = desired_value - actual_value
-    !     controllerP = gainP*newError
-    !     integral = integral + 0.5 * (newError + error) * dt
-
-    !     if (integral > 0.5) then
-    !         integral = 0.5
-    !     else if (integral <-0.5) then 
-    !         integral = -0.5
-    !     end if
-    !     controllerI = gainI * integral 
-    !     controllerD = gainD * (newError-error)/dt
-    !     error = newError
-    ! end subroutine get_command_deflect
-
 
 end module sim_m

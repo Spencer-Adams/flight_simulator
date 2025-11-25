@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import json 
 import helper as hlp # type: ignore
 import time # type: ignore
+from controller import get_errors, get_commanded
 
 class view_plane:
     """"""
@@ -38,7 +39,16 @@ class view_plane:
                 print("Camera Location\n", self.camera_location_xyz)
                 self.ground_line = []#ax.plot([], [], color=viewplane_object.ground_grid_color)
                 self.vehicle_line = []#ax.plot([], [], color='black')  # or any color
-    
+                # controller stuff 
+                self.vehicle_file = hlp.parse_dictionary_or_return_default(input, ["scene", "vehicle", "vtk_file"], "F16_coarse.vtk")
+                self.is_use_controler = hlp.parse_dictionary_or_return_default(input, ["controller", "is_use_controller"], True)
+                self.rollRateControl = hlp.parse_dictionary_or_return_default(input, ["controller", "rollRateControl"], [0.0,0.0,0.0,0.0])
+                self.bankAngleControl = hlp.parse_dictionary_or_return_default(input, ["controller", "bankAngleControl"], [0.0,0.0,0.0,0.0])
+                self.pitchRateControl = hlp.parse_dictionary_or_return_default(input, ["controller", "pitchRateControl"], [0.0,0.0,0.0,0.0])
+                self.elevationAngleControl = hlp.parse_dictionary_or_return_default(input, ["controller", "elevationAngleControl"], [0.0,0.0,0.0,0.0])
+                self.yawRateControl = hlp.parse_dictionary_or_return_default(input, ["controller", "yawRateControl"], [0.0,0.0,0.0,0.0])
+                self.velocityControl = hlp.parse_dictionary_or_return_default(input, ["controller", "velocityControl"], [0.0,0.0,0.0,0.0])
+
     def parse_vtk(self):
         filename = self.vehicle_file
         with open(filename, 'r') as f:
@@ -279,27 +289,93 @@ class view_plane:
         self.ground_num_points = len(self.ground_points)
         self.ground_num_lines  = len(self.ground_lines)
         self.lines2D = np.full((self.ground_num_lines * 3, 2), None, dtype=object)
-    
-if __name__ == "__main__":
 
+
+class HUD:
+    def __init__(self,json_data,ax,camera):
+        color = json_data["color"]
+        box_background_color = 'lightgrey'
+        dx = camera.dx
+        dy = camera.dy
+        # Altitude
+        self.altitude_minor = TickerTape(ax,color,'vertical',0.4*dy,10, 100,0.40*dx, -0.02*dx)
+        self.altitude_major = TickerTape(ax,color,'vertical',0.4*dy,1 ,1000,0.40*dx, -0.05*dx,True,0.01*dx,-0.02*dy)
+        ax.fill([0.4*dx, 0.42*dx, 0.5*dx, 0.5*dx, 0.42*dx, 0.4*dx],[0.0, 0.05*dy,0.05*dy, -0.05*dy, -0.05*dy,0.0],facecolor=box_background_color,edgecolor=color,linewidth=1,zorder=100)
+        self.altitude_box = ax.text(0.415*dx, -0.02*dy,str("{:0.0f}".format(0.0)), color=color,zorder=101)
+        # Heading
+        self.heading_minor = TickerTape(ax,color,'horizontal',0.2*dx,4, 5,-0.48*dy, 0.02*dy)
+        self.heading_major = TickerTape(ax,color,'horizontal',0.2*dx,2,10,-0.48*dy, 0.05*dy,True,-0.03*dx,-0.03*dy)
+        ax.fill([0.0, -0.04*dx, -0.04*dx, 0.04*dx, 0.04*dx, 0.0],[-0.48*dy,-0.5*dy, -0.57*dy, -0.57*dy, -0.5*dy,-0.48*dy],facecolor=box_background_color,edgecolor=color,linewidth=1,zorder=100)
+        self.heading_box = ax.text(-0.03*dx, -0.55*dy, str("{:0.0f}".format(0.0)),color=color,zorder=101)    
+
+    def draw(self, camera, state):
+        dx = camera.dx
+        dy = camera.dy
+        # Altitude Ticker
+        self.altitude_minor.update(-state.location[2])
+        self.altitude_major.update(-state.location[2])
+        self.altitude_box.set_text(str("{:0.0f}".format(-state.location[2])))
+        # Heading Ticker
+        self.heading_minor.update(state.eul[2]*180.0/np.pi)
+        self.heading_major.update(state.eul[2]*180.0/np.pi,True)
+        self.heading_box.set_text(str("{:0.0f}".format(state.eul[2]*180.0/np.pi)))
+
+if __name__ == "__main__":
     np.set_printoptions(formatter={'float': lambda x: f"{x:.12g}"})
-    # x_f_array = np.array([-10 , 10 , -10 , 10 , -10 , 10 , -10 , 10 , -10 , 10 , -10 , -10 , -5 , -5 , 0 , 0 , 5 , 5 , 10 , 10])
-    # y_f_array = np.array([-10 , -10 , -5 , -5 , 0 , 0 , 5 , 5 , 10 , 10 , -10 , 10 , -10 , 10 , -10 , 10 , -10 , 10 , -10 , 10])
-    # z_f_array = np.array([0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0])
-    # f_points = np.column_stack((x_f_array, y_f_array, z_f_array))
     print_stuff = False
     plot_stuff = True
     # make viewplane object (which sets self.distance_observe_to_viewplane, self.observation_angle, and self.viewplane_RA)
     viewplane_object = view_plane("graphics.json")
-
+    # Bank Angle settings
+    desiredBankAngle = viewplane_object.bankAngleControl[0]
+    integral_bank_angle = 0.0
+    error_bank_angle = 0.5
+    P_bankAngle = viewplane_object.bankAngleControl[1]
+    I_bankAngle = viewplane_object.bankAngleControl[2]
+    D_bankAngle = viewplane_object.bankAngleControl[3]
+    # Roll Rate settings
+    desiredRollRate = viewplane_object.rollRateControl[0]
+    integral_roll_rate = 0.0
+    error_roll_rate = 0.5
+    P_rollRate = viewplane_object.rollRateControl[1]
+    I_rollRate = viewplane_object.rollRateControl[2]
+    D_rollRate = viewplane_object.rollRateControl[3]
+    # Elevation Angle settings
+    desiredElevationAngle = viewplane_object.elevationAngleControl[0]
+    integral_elevation_angle = 0.0
+    error_elevation_angle = 0.5
+    P_elevationAngle = viewplane_object.elevationAngleControl[1]
+    I_elevationAngle = viewplane_object.elevationAngleControl[2]
+    D_elevationAngle = viewplane_object.elevationAngleControl[3]
+    # Pitch Rate settings
+    desiredPitchRate = viewplane_object.pitchRateControl[0]
+    integral_pitch_rate = 0.0
+    error_pitch_rate = 0.5
+    P_pitchRate = viewplane_object.pitchRateControl[1]
+    I_pitchRate = viewplane_object.pitchRateControl[2]
+    D_pitchRate = viewplane_object.pitchRateControl[3]
+    # Yaw Rate settings
+    desiredYawRate = viewplane_object.yawRateControl[0]
+    integral_yaw_rate = 0.0
+    error_yaw_rate = 0.5
+    P_yawRate = viewplane_object.yawRateControl[1]
+    I_yawRate = viewplane_object.yawRateControl[2]
+    D_yawRate = viewplane_object.yawRateControl[3]
+    # Velocity settings
+    desiredVelocity = viewplane_object.velocityControl[0]
+    integral_velocity = 0.0
+    error_velocity = 0.5
+    P_velocity = viewplane_object.velocityControl[1]
+    I_velocity = viewplane_object.velocityControl[2]
+    D_velocity = viewplane_object.velocityControl[3]
     with open(viewplane_object.viewplane_json_file, 'r') as json_handle:
         file_loc = json.load(json_handle)
     states_connection = connection(file_loc["connections"]["receive_states"])
     controls_connection = connection(file_loc["connections"]["send_states"])
     pygame.init()
     pygame.joystick.init()
-    joy = pygame.joystick.Joystick(0)
-    joy.init()
+    joy = pygame.joystick.Joystick(0) #####
+    joy.init() #####
     ## axis 0: Rudder
     ## axis 1: Throttle
     ## axis 2: Aileron 
@@ -370,25 +446,56 @@ if __name__ == "__main__":
         # Draw vehicle
         viewplane_object.plot_viewplane_in_2D(lambda_vehicle_array,viewplane_object.vehicle_points,viewplane_object.vehicle_lines,viewplane_object.vehicle_num_lines,vehicle_xy_projected_on_viewplane,viewplane_object.vehicle_lines2D,line_type = viewplane_object.vehicle_line)
         # plt.show()
+        dt = 0.001
+        max_da_rad = 0.375246
+        max_de_rad = 0.436332
+        max_dr_rad = 0.523599
+        max_tau = 1.0
         while(frame<1000.0):
             time_start = time.time()
+            states = states_connection.recv()
+            # print("length_states = ", len(states))
+            phiThetaPsi = hlp.quat_to_euler(states[10:14])
+            # Vmag = np.sqrt(states[1]**2+states[2]**2+states[3]**2)
+            # Gamma = np.arcsin((states[1]*np.sin(phiThetaPsi[1])-np.cos(phiThetaPsi[1])*(states[2]*np.sin(phiThetaPsi[0])+states[3]*np.cos(phiThetaPsi[0])))/Vmag)
+            desiredElevationAngle = np.arctan2(states[2]*np.sin(phiThetaPsi[0])+states[3]*np.cos(phiThetaPsi[0]),states[1])
+            # alpha = np.arctan2(states[3], states[1])
+            # desiredElevationAngle = alpha
             viewplane_object.plot_viewplane_in_2D(lambda_array, viewplane_object.ground_points, viewplane_object.ground_lines, viewplane_object.ground_num_lines, ground_xy_projected_on_viewplane, viewplane_object.lines2D, viewplane_object.ground_line)
             # viewplane_object.plot_viewplane_in_2D(lambda_vehicle_array, viewplane_object.vehicle_points, viewplane_object.vehicle_lines, viewplane_object.vehicle_num_lines, vehicle_xy_projected_on_viewplane, viewplane_object.vehicle_lines2D)
             fig.canvas.draw()
-            fig.canvas.flush_events()
+            fig.canvas.flush_events() ####
             Controls = np.array([
-                np.round(-joy.get_axis(2)*0.375246,1),  # da -> val * 21.5 * Pi/180
-                np.round(-joy.get_axis(3)*0.436332,1),  # de -> val * 25.0 * Pi/180
-                np.round(joy.get_axis(0)*0.523599,1),  # dr -> val * 30.0 * Pi/180
-                np.round(-0.5*joy.get_axis(1)+0.5,1),  # tau -> val * -0.5 + 0.5 so that joystick goes from 0 to 1 when deflected from bottom to top
+                np.round(-joy.get_axis(2)**3*max_da_rad,1),  #### da -> val * 21.5 * Pi/180
+                np.round(-joy.get_axis(3)**3*max_de_rad,1), #### de -> val * 25.0 * Pi/180
+                np.round(joy.get_axis(0)**3*max_dr_rad,1),  #### dr -> val * 30.0 * Pi/180
+                np.round(-0.5*joy.get_axis(1)+0.5,1), ### # tau -> val * -0.5 + 0.5 so that joystick goes from 0 to 1 when deflected from bottom to top
             ])
+            dapilot = Controls[0]
+            depilot = Controls[1]
+            drpilot = Controls[2]
+            taupilot = 0.0#Controls[3]
+
+            # --- OUTER LOOP: bank and elevation angle PID - produces roll_rate_command and pitch_rate_command (setpoints for inner loop)
+            integral_bank_angle, error_bank_angle, error_bank_P, error_bank_I, error_bank_D = get_errors(dt, desiredBankAngle, phiThetaPsi[0], P_bankAngle, I_bankAngle, D_bankAngle, integral_bank_angle, error_bank_angle)
+            integral_elevation_angle, error_elevation_angle, error_elevation_P, error_elevation_I, error_elevation_D = get_errors(dt, desiredElevationAngle,phiThetaPsi[1],P_elevationAngle,I_elevationAngle,D_elevationAngle,integral_elevation_angle,error_elevation_angle)
+            roll_rate_command = get_commanded(error_bank_P, error_bank_I, error_bank_D, dapilot, desiredRollRate, False)
+            pitch_rate_command = get_commanded(error_elevation_P, error_elevation_I, error_elevation_D, depilot, desiredPitchRate, False)
+            # Inner loop: Includes yaw and throttle (no inner loop stuff for this)
+            integral_roll_rate, error_roll_rate, error_roll_P, error_roll_I, error_roll_D = get_errors(dt, roll_rate_command, states[4], P_rollRate, I_rollRate, D_rollRate, integral_roll_rate, error_roll_rate)
+            integral_pitch_rate, error_pitch_rate, error_pitch_P, error_pitch_I, error_pitch_D = get_errors(dt, pitch_rate_command, states[5], P_pitchRate, I_pitchRate, D_pitchRate, integral_pitch_rate, error_pitch_rate)
+            integral_yaw_rate, error_yaw_rate, error_yaw_P, error_yaw_I, error_yaw_D = get_errors(dt, desiredYawRate, states[6], P_yawRate, I_yawRate, D_yawRate, integral_yaw_rate, error_yaw_rate)
+            integral_velocity, error_velocity, error_vel_P, error_vel_I, error_vel_D = get_errors(dt, desiredVelocity, states[1], P_velocity, I_velocity, D_velocity, integral_velocity, error_velocity)
+            # final aileron command: when getting_final_command=True -> pilot overrides final actuator, otherwise use PID sum.
+            Controls[0] = np.clip(get_commanded(error_roll_P, error_roll_I, error_roll_D, dapilot, roll_rate_command, True), -max_da_rad, max_da_rad)
+            Controls[1] = np.clip(get_commanded(error_pitch_P, error_pitch_I, error_pitch_D, depilot, pitch_rate_command, True), -max_de_rad, max_de_rad)
+            Controls[2] = np.clip(get_commanded(error_yaw_P, error_yaw_I, error_yaw_D, drpilot, desiredYawRate, True), -max_dr_rad, max_dr_rad)
+            Controls[3] = np.clip(get_commanded(error_vel_P, error_vel_I, error_vel_D, taupilot, desiredVelocity, True), 0.0, max_tau)
             Controls_sent = controls_connection.send(Controls)
-            states = states_connection.recv()
             # print(states)
             # viewplane_object.vehicle_location_xyz[:] = states[7:10]
             viewplane_object.camera_location_xyz[:] = states[7:10] #+ viewplane_object.original_camera_location_xyz
             viewplane_object.camera_quaternion[:] = states[10:14]
-            # viewplane_object.camera_location_xyz[0] += 0.1
             viewplane_object.camera_set_state(viewplane_object.camera_location_xyz, viewplane_object.camera_quaternion)
             viewplane_object.calc_ground_grid()
             l_ca_array = viewplane_object.calc_l_ca_array(viewplane_object.ground_points)
@@ -398,6 +505,7 @@ if __name__ == "__main__":
             # lambda_vehicle_array = viewplane_object.calc_lambda_array(l_ca_vehicle_array)
             ground_xy_projected_on_viewplane = viewplane_object.calc_xy_projection_onto_viewplane(l_ca_array, lambda_array)
             time_end = time.time()
-            fps = 1/(time_end-time_start)
-            print("      update hz = ", fps)
-            # print("        aileron = ", Controls[0]*180/np.pi, " elevator = ", Controls[1]*180/np.pi, " rudder = ", Controls[2]*180/np.pi, " throttle = ", Controls[3], "update hz = ", fps)
+            dt = time_end-time_start
+            fps = 1/(dt)
+            # print("      update hz = ", fps)
+            print("        aileron = ", np.round(Controls[0]*180/np.pi,2), " elevator = ", np.round(Controls[1]*180/np.pi,2), " rudder = ", np.round(Controls[2]*180/np.pi,2), " throttle = ", np.round(Controls[3],2), "update hz = ", np.round(fps,3), " velocity: ", np.round(states[1],3))

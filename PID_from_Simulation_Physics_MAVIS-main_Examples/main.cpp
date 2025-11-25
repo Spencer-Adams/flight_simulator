@@ -31,12 +31,10 @@ struct PID_Controller
         //     integral += 0.5 * (error + previous_error) * dt;  // Trapezoidal rule
         // }
         integral += 0.5 * (error + previous_error) * dt;
-
         if (integral > 0.5)  // Anti-windup for integral term
             integral = 0.5;
         else if (integral < -0.5)
             integral = -0.5;
-        
         controllerI = ki * integral;
         controllerD = kd * (error - previous_error) / dt;
         previous_error = error;  // Update previous error
@@ -225,7 +223,7 @@ int main (int argc, char * const argv[]) {
                 w = mPhysicsToController->mArrayValues[3]; // Body-axis z velocity
                 dt = simTime - old_time; // Time difference
 
-                dapilot = pow(mPilotToController->mArrayValues[0], 3); // Aileron control input
+                dapilot = pow(mPilotToController->mArrayValues[0], 3); // Aileron control input (using exponents so that it's not too sensitive)
                 depilot = pow(mPilotToController->mArrayValues[1], 3); // Elevator control input
                 drpilot = pow(mPilotToController->mArrayValues[2], 3); // Rudder control input
                 taupilot = mPilotToController->mArrayValues[3]; // Throttle control input

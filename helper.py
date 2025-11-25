@@ -39,6 +39,37 @@ def euler_to_quat(euler):
     quat[3] = cos_phi_cos_theta*sin_psi - sin_phi_sin_theta*cos_psi
     return quat
 
+def quat_to_euler(quat): 
+    # print("quat")
+    # print("quat")
+    # print("quat")
+    # print("quat")
+    # print(quat)
+    # print("quat")
+    # print("quat")
+    # print("quat")
+    # print("quat")
+    e0 = quat[0]
+    ex = quat[1]
+    ey = quat[2]
+    ez = quat[3]
+    euler = np.array([0.0,0.0,0.0])
+    cos_pi_4 = ex/np.cos(np.pi*0.25)
+    arcsin_quat_cos_pi_4 = np.arcsin(cos_pi_4)
+    if (e0*ey-ex*ez == 0.5):
+        euler[0] = 2*arcsin_quat_cos_pi_4
+        euler[1] = 0.5*np.pi
+        euler[2] = 0.0
+    elif (e0*ey-ex*ez == 0.5):
+        euler[0] = 2*arcsin_quat_cos_pi_4
+        euler[1] = -0.5*np.pi
+        euler[2] = 0.0
+    else: 
+        euler[0] = np.arctan2(2*(e0*ex + ey*ez), (e0**2 + ez**2 -ex**2 -ey**2))
+        euler[1] = np.arcsin(2*(e0*ey-ex*ez))
+        euler[2] = np.arctan2(2*(e0*ez + ex*ey), (e0**2 + ex**2 -ey**2 -ez**2))
+    return euler 
+
 def quat_base_to_dependent(vec, quat):
     # Eq. (1.5.4 in the book which uses the quaternion product twice to get Eq. 1.5.7) Can be used to go from earth-fixed to body-fixed coordinates.
     vx = vec[0]

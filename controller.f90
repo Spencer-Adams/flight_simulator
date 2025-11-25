@@ -1,5 +1,6 @@
 module sim_m
     use adams_m
+    use controller_m
     use jsonx_m
     use linalg_mod
     use micro_time_m
@@ -20,14 +21,11 @@ module sim_m
     real :: V_initial, alpha_initial, beta_initial
     real :: rho0,Z_temp,T_temp,P_temp,a_temp,mu_temp
     real :: trim_state(13)
-    logical :: rk4_verbose, is_trim_sideslip_angle, is_use_controls, is_use_controller
+    logical :: rk4_verbose, is_trim_sideslip_angle, is_use_controls
     real :: trim_elevation_angle, trim_sideslip_angle, trim_bank_angle
     real :: trim_azimuth_angle, p_wind, trim_climb_angle
-    real, allocatable :: rollRateControl(:), bankAngleControl(:)
-    real, allocatable :: pitchRateControl(:), elevationAngleControl(:)
-    real, allocatable :: yawRateControl(:), velocityControl(:)
 
-    type(connection) :: graphics, connect_controls 
+    type(connection) :: my_controller 
     type(json_value), pointer :: j_main
 
     ! aero coefficients 
@@ -96,7 +94,6 @@ module sim_m
         integrated_time = 0.0
 
         do while(t<tf) ! while altitude is greater than 0 ft (altitude is positive going down in our coordinate systems) or time is less than final time
-            ! write(*,*) "dt", dt
             if (is_use_controls) then 
                 controls = connect_controls%recv()
             end if
@@ -125,85 +122,6 @@ module sim_m
         write(*,*) 'Total error in time [s] = ', integrated_time - actual_time
     end subroutine run
 
-    function cross_product_3D(a, b) result(result)
-        implicit none
-        real, intent(in) :: a(3), b(3) 
-        real :: result(3)
-        result(1) = a(2)*b(3) - a(3)*b(2)
-        result(2) = a(3)*b(1) - a(1)*b(3)
-        result(3) = a(1)*b(2) - a(2)*b(1)
-    end function cross_product_3D
-
-    function runge_kutta(t_0, state, delta_t) result(state_out)
-        implicit none 
-        real, intent(in) :: t_0
-        real, intent(in), dimension(:) :: state
-        real, intent(in) :: delta_t
-        real :: state_out(size(state))
-        real :: k1(n), k2(n), k3(n), k4(n)
-        real :: state_temp(n)
-        real :: t_0_plus_delta_t_over_2
-        t_0_plus_delta_t_over_2 = t_0 + delta_t_over_2
-        k1 = differential_equations(t_0, state)
-            state_temp = state
-            state_temp = state_temp + delta_t_over_2 * k1
-        k2 = differential_equations(t_0_plus_delta_t_over_2, state_temp)
-            state_temp = state
-            state_temp = state_temp + delta_t_over_2 * k2
-        k3 = differential_equations(t_0_plus_delta_t_over_2, state_temp)
-            state_temp = state 
-            state_temp = state_temp + delta_t * k3 
-        k4 = differential_equations(t_0 + delta_t, state_temp)
-        state_out = state + delta_t_over_6 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
-    end function runge_kutta
-
-    function differential_equations(time, state) result(res)
-        implicit none 
-        real, intent(in) :: time
-        real, intent(in), dimension(:) :: state
-        real :: res(size(state))
-        real :: u,v,w,p,q,r,x,y,z
-        real :: e0,ex,ey,ez
-        real, dimension(3) :: pqr_temp, rot_and_inertia_temp
-        real :: gravity
-        u = state(1)
-        v = state(2)
-        w = state(3)
-        p = state(4)
-        q = state(5)
-        r = state(6)
-        pqr_temp = [p,q,r]
-        x = state(7)
-        y = state(8)
-        z = state(9)
-        e0 = state(10)
-        ex = state(11)
-        ey = state(12)
-        ez = state(13)
-        gravity = gravity_English(-z)
-        call pseudo_aero(state)
-        rot_and_inertia_temp = & 
-        [FM(4) + dot_product(h_gyro(1,:),pqr_temp) + ((Iyyb-Izzb)*q*r-Iyzb*(q**2-r**2)-Ixzb*p*q+Ixyb*p*r)-hdot_gyro(1),&
-        FM(5) + dot_product(h_gyro(2,:),pqr_temp) + ((Izzb-Ixxb)*p*r-Ixzb*(r**2-p**2)-Ixyb*q*r+Iyzb*p*q)-hdot_gyro(2),& 
-        FM(6) + dot_product(h_gyro(3,:),pqr_temp) + ((Ixxb-Iyyb)*p*q-Ixyb*(p**2-q**2)-Iyzb*p*r+Ixzb*q*r)-hdot_gyro(3)]
-        res(1) = 1/mass * FM(1) + gravity * 2 *(ex*ez-ey*e0) + r*v - q*w ! udot body-fixed
-        res(2) = 1/mass * FM(2) + gravity * 2 *(ey*ez+ex*e0) + p*w - r*u ! vdot body-fixed
-        res(3) = 1/mass * FM(3) + gravity * (ez**2+e0**2-ex**2-ey**2) + q*u - p*v ! wdot body-fixed
-        res(4:6) = matmul(Iinv, rot_and_inertia_temp) ! pdot, qdot, rdot body-fixed
-        res(7:9) = quat_dependent_to_base((/u,v,w/), (/e0, ex, ey, ez/)) !!! + wind ! xdot ydot zdot earth-fixed
-        res(10) = 0.5 * dot_product((/-ex, -ey, -ez/),pqr_temp) !e0
-        res(11) = 0.5 * dot_product((/e0, -ez, ey/),pqr_temp) !ex
-        res(12) = 0.5 * dot_product((/ez, e0, -ex/),pqr_temp) !ey
-        res(13) = 0.5 * dot_product((/-ey, ex, e0/),pqr_temp) !ez
-        if (rk4_verbose) then
-            write(*,*) "state"
-            write(*,*) state
-            write(*,*) ""
-            write(*,*) "res"
-            write(*,'(14E22.13)') res
-            write(*,*) ""
-        end if
-    end function differential_equations
 
     subroutine init(filename)
         implicit none 
@@ -415,14 +333,6 @@ module sim_m
             y_init(4:6) = trim_array(3:5)
             controls(1:4) = trim_array(6:9) 
         end if
-        ! controller stuff 
-        call jsonx_get(j_main, "controller.is_use_controller", is_use_controller)
-        call jsonx_get(j_main, "controller.rollRateControl", rollRateControl,0.0,4)
-        call jsonx_get(j_main, "controller.bankAngleControl", bankAngleControl,0.0,4) 
-        call jsonx_get(j_main, "controller.pitchRateControl", pitchRateControl,0.0,4) 
-        call jsonx_get(j_main, "controller.elevationAngleControl", elevationAngleControl,0.0,4)
-        call jsonx_get(j_main, "controller.yawRateControl", yawRateControl,0.0,4) 
-        call jsonx_get(j_main, "controller.velocityControl", velocityControl,0.0,4)
         ! connections 
         call jsonx_get(j_main, 'connections', j_connections)
         call jsonx_get(j_connections, 'graphics', j_graphics)
@@ -603,133 +513,6 @@ module sim_m
         trim_result = [alpha, beta, p, q, r, da, de, dr, tau]
     end function trim_algorithm
 
-    function create_jacobian(states, step_size, p, q, r) result(jacobian) ! states should be six elements long (alpha,phi, da de dr tau) or (alpha, beta, da, de, dr, tau)
-        implicit none 
-        real, intent(in) :: step_size, p, q, r
-        real :: states(6)
-        ! real :: states_plus(6), states_minus(6)
-        real :: jacobian(6,6)
-        real :: R_plus(6)
-        real :: R_minus(6)
-        integer :: j, i
-        ! write(*,'(a)') 'Building Jacobian Matrix:'
-        do j = 1, 6
-            states(j) = states(j) + step_size
-            ! write(*,'(a,i3)') 'Computing gradient relative to G[', j-1, ']'
-            ! write(*,'(a)') '   Positive Finite-Difference Step '
-            ! write(*,'(a,1x,6(e25.16,","))') 'G = ', states
-            R_plus = calc_residual(states, p, q, r) ! use alpha and beta at that point to calculate u,v,w,p,q,r,phi,theta,psi which make the state vector
-            states(j) = states(j) - 2*step_size 
-            R_minus = calc_residual(states, p, q, r)
-            ! write(*,'(a,1x,6(e25.16,","))') 'r = ', R_plus
-            ! write(*,'(a)') '   Negative Finite-Difference Step '
-            ! write(*,'(a,1x,6(e25.16,","))') 'G = ', states
-            ! write(*,'(a,1x,6(e25.16,","))') 'r = ', R_minus
-            do i = 1, 6
-                jacobian(i,j) = (R_plus(i) - R_minus(i))/(2*step_size)
-            end do 
-
-            states(j) = states(j) + step_size
-        end do  
-    end function create_jacobian
-
-    function calc_theta_from_climb_angle(climb_angle, u, v, w, phi) result(return_theta)
-        implicit none 
-        real, intent(in) :: climb_angle, u, v, w, phi
-        real :: return_theta, error_for_elevation, temp_lhs, temp_rhs_1, temp_rhs_2
-        real :: parenth_temp, S_theta_1, S_theta_2, theta_1, theta_2
-        ! write(*,*) "Solving for elevation angle given a climb angle"
-        error_for_elevation = 1e-12
-        temp_lhs = V_initial*sin(trim_climb_angle)
-        parenth_temp = v*sin(phi)+w*cos(phi)
-        S_theta_1 = (u*V_initial*sin(trim_climb_angle)+parenth_temp*sqrt(u**2 + parenth_temp**2 - &
-        V_initial**2*sin(trim_climb_angle)**2))/(u**2 + parenth_temp**2)
-        theta_1 = asin(S_theta_1)
-        ! write(*,*) "theta 1 [deg] = ", theta_1 * 180.0/PI
-        S_theta_2 = (u*V_initial*sin(trim_climb_angle)-parenth_temp*sqrt(u**2 + parenth_temp**2 - &
-        V_initial**2*sin(trim_climb_angle)**2))/(u**2 + parenth_temp**2)
-        theta_2 = asin(S_theta_2)
-        ! write(*,*) "theta 2 [deg] = ", theta_2 * 180.0/PI
-        temp_rhs_1 = u*S_theta_1 - parenth_temp*cos(theta_1)
-        temp_rhs_2 = u*S_theta_2 - parenth_temp*cos(theta_2)
-        if (abs(temp_lhs-temp_rhs_1) <= error_for_elevation) then
-            return_theta = theta_1
-            ! write(*,*) "correct theta [deg] = ", theta_1 * 180.0/PI
-        else if (abs(temp_lhs - temp_rhs_2) <= error_for_elevation) then 
-            return_theta = theta_2 
-                ! write(*,*) "correct theta [deg] = ", theta_2 * 180.0/PI
-        else 
-            write(*,*) "Error", abs(temp_lhs - temp_rhs_2)
-            write(*,*) "WARNING, BOTH THETA VALUES DO NOT SATISFY THE LHS OF EQ. 7.2.3" 
-        end if 
-    end function calc_theta_from_climb_angle
-
-    function calc_residual(state, p, q, r) result(return_state) !!! move pqr out of loop. 
-        implicit none 
-        real, intent(in) :: state(6), p, q, r
-        real :: return_state(6)
-        real :: full_state_temp(13), full_state(13)
-        real :: phi, theta, psi, e0, ex, ey, ez
-        real :: quaternion(4)
-        real :: alpha, beta,  da, de, dr
-        real :: tau, u, v, w, gravity
-        real :: x,y,z,sct_pqr_coeff, temp_lhs, temp_rhs_1, temp_rhs_2
-        z = y_init(9)
-        gravity = gravity_English(-z)
-        x = 0.0
-        y = 0.0
-        alpha = state(1)
-        if (trim_type == "shss" .and. is_trim_sideslip_angle) then 
-            beta = trim_sideslip_angle 
-            phi = state(2)
-        else
-            beta = state(2)
-            phi = trim_bank_angle
-        end if 
-        ! beta = state(2)
-        da = state(3)
-        de = state(4)
-        dr = state(5)
-        tau = state(6)
-        if (tau < 0.0) then 
-            tau = 0.0
-        else if (tau > 1.0) then 
-            tau = 1.0
-        end if 
-        u = V_initial*cos(alpha)*cos(beta)
-        v = V_initial*sin(beta)
-        w = V_initial*sin(alpha)*cos(beta) 
-        psi = trim_azimuth_angle
-        theta = trim_elevation_angle
-        controls(1) = da
-        controls(2) = de 
-        controls(3) = dr 
-        controls(4) = tau
-
-        ! if (trim_type == "shss") then
-        !     if (is_trim_sideslip_angle) then 
-        !         beta = trim_sideslip_angle
-        !         phi = state(2)
-        !         u = V_initial*cos(alpha)*cos(beta)
-        !         v = V_initial*sin(beta)
-        !         w = V_initial*sin(alpha)*cos(beta) 
-        !     else 
-        !         phi = trim_bank_angle
-        !     end if 
-        ! end if 
-        quaternion = euler_to_quat([phi,theta,psi])
-        e0 = quaternion(1)
-        ex = quaternion(2)
-        ey = quaternion(3)
-        ez = quaternion(4)
-        full_state_temp = [u,v,w,p,q,r,x,y,z,e0,ex,ey,ez]
-        ! write(*,*) "full_state_temp", full_state_temp
-        full_state = differential_equations(0.0, full_state_temp)
-        ! write(*,*) "full_state" 
-        ! write(*,*) full_state
-        return_state(1:6) = full_state(1:6)
-    end function calc_residual
-
     subroutine mass_inertia() 
         implicit none 
         real :: gravity
@@ -737,60 +520,7 @@ module sim_m
         real :: det_I
         real :: I_tilde(3,3) 
         real :: a11, a22, a33, a12, a13, a21, a23, a31, a32
-        I = 0.0
-        call jsonx_get(j_main, "vehicle.mass.weight[lbf]", weight)
-        call jsonx_get(j_main, "vehicle.mass.Ixx[slug-ft^2]", I(1,1))
-        call jsonx_get(j_main, "vehicle.mass.Iyy[slug-ft^2]", I(2,2))
-        call jsonx_get(j_main, "vehicle.mass.Izz[slug-ft^2]", I(3,3))
-        call jsonx_get(j_main, "vehicle.mass.Ixy[slug-ft^2]", I(1,2))
-        call jsonx_get(j_main, "vehicle.mass.Ixz[slug-ft^2]", I(3,1))
-        call jsonx_get(j_main, "vehicle.mass.Iyz[slug-ft^2]", I(3,2))
-        call jsonx_get(j_main, "vehicle.mass.hx[slug-ft^2/s]", hx) ! in the 3 by 3 h matrix in Eq. 5.4.6
-        call jsonx_get(j_main, "vehicle.mass.hy[slug-ft^2/s]", hy)
-        call jsonx_get(j_main, "vehicle.mass.hz[slug-ft^2/s]", hz)
-        I(1,2) = -I(1,2)
-        I(3,1) = -I(3,1)
-        I(3,2) = -I(3,2)
-        I(2,1) = I(1,2)
-        I(1,3) = I(3,1)
-        I(2,3) = I(3,2)
-        Ixxb = I(1,1)
-        Iyyb = I(2,2)
-        Izzb = I(3,3)
-        Ixyb = I(1,2)
-        Ixzb = I(1,3)
-        Iyzb = I(2,3)
-        a11 = I(1,1)
-        a22 = I(2,2)
-        a33 = I(3,3)
-        a12 = I(1,2)
-        a13 = I(1,3)
-        a21 = I(2,1)
-        a23 = I(2,3)
-        a31 = I(3,1)
-        a32 = I(3,2)
-        gravity = gravity_English(0.0)
-        mass = weight/gravity
-        det_I = a11*a22*a33 + a12*a23*a31 + a13*a21*a32 &
-        - a13*a22*a31 - a12*a21*a33 - a11*a23*a32
-        I_tilde(1,1) = a22*a33 - a23*a32
-        I_tilde(1,2) = a13*a32 - a12*a33
-        I_tilde(1,3) = a12*a23 - a13*a22
-        I_tilde(2,1) = a23*a31 - a21*a33
-        I_tilde(2,2) = a11*a33 - a13*a31
-        I_tilde(2,3) = a13*a21 - a11*a23
-        I_tilde(3,1) = a21*a32 - a22*a31
-        I_tilde(3,2) = a12*a31 - a11*a32
-        I_tilde(3,3) = a11*a22 - a12*a21
-        Iinv = 1/(det_I)*I_tilde
-        h_gyro = 0.0
-        h_gyro(1,2) = -hz
-        h_gyro(1,3) = hy
-        h_gyro(2,1) = hz
-        h_gyro(2,3) = -hx
-        h_gyro(3,1) = -hy
-        h_gyro(3,2) = hx
-        hdot_gyro = 0.0
+       
     end subroutine mass_inertia
 
     subroutine pseudo_aero(y) 
@@ -801,97 +531,7 @@ module sim_m
         real :: CL1, CL, CS, CD, Cll, Cm, Cn 
         real :: sa, ca, sb, cb
         real :: Z, T, P, rho, a, mu
-        ahat = 0.0
-        !!!! receive controls from python script here !!!!
-        da = controls(1)
-        de = controls(2)
-        dr = controls(3)
-        tau = controls(4)
-        if (tau < 0.0) then 
-            tau = 0.0
-        else if (tau > 1.0) then 
-            tau = 1.0
-        end if 
 
-        call std_atm_English(-y(9), Z, T, P, rho, a, mu)
-
-        V = sqrt(y(1)**2 + y(2)**2 + y(3)**2)
-        alpha = atan2(y(3), y(1)) ! Eq. 3.4.4
-        beta = asin(y(2)/V) ! Eq. 3.4.5
-        pbar = 0.5*y(4)*lat_ref/(V)
-        qbar = 0.5*y(5)*long_ref/(V)
-        rbar = 0.5*y(6)*lat_ref/(V)
-
-        CL1 = CL0 +CLa*alpha
-        CL = CL1 + CLqbar*qbar+CLahat*ahat + CLde*de
-        CS = CSb*beta + (CSpbar+CSapbar*alpha)*pbar + CSrbar*rbar + CSda*da + CSdr*dr
-        CD = CDL0 + CDL1*CL1 + CDL2*CL1**2 + CDS2*CS**2 + (CDqbar + CDaqbar*alpha)*qbar + (CDde + CDade*alpha)*de + CDde2*de**2
-        Cll = Clb*beta + Clpbar*pbar + (Clrbar + Clarbar*alpha)*rbar + Clda*da + Cldr*dr
-        Cm = Cm0 + Cma*alpha + Cmqbar*qbar + Cmahat*ahat + Cmde*de 
-        Cn = Cnb*beta + (Cnpbar + Cnapbar*alpha)*pbar + Cnrbar*rbar + (Cnda + Cnada*alpha)*da + Cndr*dr
-        sa = sin(alpha)
-        ca = cos(alpha)
-        sb = sin(beta)
-        cb = cos(beta)
-        FM(1) = CL*sa-CS*ca*sb-CD*ca*cb
-        FM(2) = CS*cb-CD*sb
-        FM(3) = -CL*ca-CS*sa*sb-CD*sa*cb
-        FM(4) = lat_ref*Cll
-        FM(5) = long_ref*Cm
-        FM(6) = lat_ref*Cn
-        FM = 0.5*rho*V**2*sref*FM
-        FM(1) = FM(1) + tau*Thrust0*(rho/rho0)**Ta
-        FM(4:6) = FM(4:6) + cross_product_3D(aero_ref_location, FM(1:3)) ! body-fixed axis
-        if (rk4_verbose) then
-            write(*,*) "FM"
-            write(*,*) FM
-        end if
     end subroutine pseudo_aero
-
-    ! subroutine get_errors(controllerP, controllerI, controllerD, dt, desired_value, & 
-    !     actual_value, gainP, gainI, gainD, integral, error) 
-    !     implicit none 
-    !     real, intent(inout) :: integral, error
-    !     real, intent(inout) :: controllerP, controllerI, controllerD
-    !     real, intent(in) :: desired_value, actual_value
-    !     real, intent(in) :: gainP, gainI, gainD, dt
-    !     real :: newError 
-    !     newError = desired_value - actual_value
-    !     controllerP = gainP*newError
-    !     integral = integral + 0.5 * (newError + error) * dt
-
-    !     if (integral > 0.5) then
-    !         integral = 0.5
-    !     else if (integral <-0.5) then 
-    !         integral = -0.5
-    !     end if
-
-    !     controllerI = gainI * integral 
-    !     controllerD = gainD * (newError-error)/dt
-    !     error = newError
-    ! end subroutine get_errors
-
-    ! subroutine get_command_deflect(controllerP, controllerI, controllerD, dt, desired_value, & 
-    !     actual_value, gainP, gainI, gainD, integral, error) 
-    !     implicit none 
-    !     real, intent(inout) :: integral, error
-    !     real, intent(inout) :: controllerP, controllerI, controllerD
-    !     real, intent(in) :: desired_value, actual_value
-    !     real, intent(in) :: gainP, gainI, gainD, dt
-    !     real :: newError 
-    !     newError = desired_value - actual_value
-    !     controllerP = gainP*newError
-    !     integral = integral + 0.5 * (newError + error) * dt
-
-    !     if (integral > 0.5) then
-    !         integral = 0.5
-    !     else if (integral <-0.5) then 
-    !         integral = -0.5
-    !     end if
-    !     controllerI = gainI * integral 
-    !     controllerD = gainD * (newError-error)/dt
-    !     error = newError
-    ! end subroutine get_command_deflect
-
 
 end module sim_m

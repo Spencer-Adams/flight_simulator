@@ -15,7 +15,7 @@
         "graphics" : {
             "type" : "send",
             "number_of_values": 14,
-            "refresh_rate": 40,
+            "refresh_rate": 100,
             "channel_type": "udp",
             "port_ID": 50000
         },
@@ -150,6 +150,18 @@
                 "max_iterations" : 1000
             }
         }
+    },
+    "controller" : {
+        "is_use_controller" : true,
+        "Example" : ["Commanded Value", "P Gain", "I Gain", "D Gain"],
+        "Note" : "Aileron used to control bank angle and roll rate. Elevator used to control elevation angle and pitch rate. Rudder Used to control yaw rate. Throttle used to control velocity",
+        "rollRateControl" : [0.0, -0.314159, -0.38397, -0.0004],
+        "bankAngleControl" : [0.0, 2.2, 0.0, 0.1],
+        "pitchRateControl" : [0.0, -0.41887902, -1.22173048, -0.000296706],
+        "elevationAngleControl" : [0.0, 2.2, 0.0, 0.1],
+        "yawRateControl" : [0.0, -0.6981317, -3.945, -0.000296706],
+        "velocityControl" : [600.0, 0.1, 0.001, 0.0]
     }
+    
 }
 
