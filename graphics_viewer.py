@@ -456,11 +456,6 @@ if __name__ == "__main__":
             states = states_connection.recv()
             # print("length_states = ", len(states))
             phiThetaPsi = hlp.quat_to_euler(states[10:14])
-            # Vmag = np.sqrt(states[1]**2+states[2]**2+states[3]**2)
-            # Gamma = np.arcsin((states[1]*np.sin(phiThetaPsi[1])-np.cos(phiThetaPsi[1])*(states[2]*np.sin(phiThetaPsi[0])+states[3]*np.cos(phiThetaPsi[0])))/Vmag)
-            desiredElevationAngle = np.arctan2(states[2]*np.sin(phiThetaPsi[0])+states[3]*np.cos(phiThetaPsi[0]),states[1])
-            # alpha = np.arctan2(states[3], states[1])
-            # desiredElevationAngle = alpha
             viewplane_object.plot_viewplane_in_2D(lambda_array, viewplane_object.ground_points, viewplane_object.ground_lines, viewplane_object.ground_num_lines, ground_xy_projected_on_viewplane, viewplane_object.lines2D, viewplane_object.ground_line)
             # viewplane_object.plot_viewplane_in_2D(lambda_vehicle_array, viewplane_object.vehicle_points, viewplane_object.vehicle_lines, viewplane_object.vehicle_num_lines, vehicle_xy_projected_on_viewplane, viewplane_object.vehicle_lines2D)
             fig.canvas.draw()
