@@ -13,7 +13,7 @@
         "receive_states": {
             "type" : "receive",
             "number_of_values" : 14,
-            "refresh_rate" : 100,
+            "refresh_rate" : 150,
             "channel_type" : "udp",
             "double_precision": false,
             "wait_for_data": true,
@@ -23,7 +23,7 @@
         "send_states": {
             "type" : "send",
             "number_of_values" : 4,
-            "refresh_rate" : 50,
+            "refresh_rate" : 150,
             "channel_type" : "udp",
             "double_precision": true,
             "wait_for_data": true,
@@ -34,8 +34,8 @@
     "scene" : {
         "ground" : {
                 "altitude[ft]" : 0.0,
-                "grid_number" : 20,
-                "grid_scale[ft]" : 450.0,
+                "grid_number" : 10,
+                "grid_scale[ft]" : 550.0,
                 "color" : "gray"
         },
         "vehicle" : {
@@ -51,7 +51,7 @@
         "bankAngleControl" : [0.0, 2.2, 0.0, 0.1],
         "pitchRateControl" : [0.0, -0.41887902, -1.22173048, -0.000296706],
         "elevationAngleControl" : [0.0, 2.2, 0.0, 0.1],
-        "yawRateControl" : [0.0, -0.6981317, -3.945, -0.000296706],
-        "velocityControl" : [600.0, 0.1, 0.001, 0.0]
+        "yawRateControl" : [0.0, -0.8981317, -3.945, -0.000296706],
+        "velocityControl" : [500.0, 0.1, 0.001, 0.0]
     }
 }

@@ -1,7 +1,7 @@
 {
     "simulation": {
         "time_step[sec]": 0.0,
-        "end_time[sec]": 20.0,
+        "end_time[sec]": 60.0,
         "rk4_verbose" : false
     },
     "connections" : {
@@ -15,7 +15,7 @@
         "graphics" : {
             "type" : "send",
             "number_of_values": 14,
-            "refresh_rate": 100,
+            "refresh_rate": 150,
             "channel_type": "udp",
             "port_ID": 50000
         },
@@ -25,7 +25,7 @@
             "number_of_values": 4,
             "double_precision": true,
             "wait_for_input" : false,
-            "refresh_rate": 100,
+            "refresh_rate": 150,
             "channel_type": "udp",
             "port_ID": 50001
         }
@@ -159,7 +159,7 @@
         "bankAngleControl" : [0.0, 2.2, 0.0, 0.1],
         "pitchRateControl" : [0.0, -0.41887902, -1.22173048, -0.000296706],
         "elevationAngleControl" : [0.0, 2.2, 0.0, 0.1],
-        "yawRateControl" : [0.0, -0.6981317, -3.945, -0.000296706],
+        "yawRateControl" : [0.0, -0.8981317, -3.945, -0.000296706],
         "velocityControl" : [600.0, 0.1, 0.001, 0.0]
     }
     

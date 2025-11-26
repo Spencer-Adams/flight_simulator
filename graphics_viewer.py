@@ -19,6 +19,8 @@ class view_plane:
             with open(self.viewplane_json_file, 'r') as json_handle:
                 input = json.load(json_handle)
                 # appellian stuff
+                self.dx = 0.01
+                self.dy = 0.01
                 self.distance_observe_to_viewplane = hlp.parse_dictionary_or_return_default(input, ["camera", "view_plane", "distance[ft]"], 1.0)
                 self.observation_angle = np.deg2rad(hlp.parse_dictionary_or_return_default(input, ["camera", "view_plane", "angle[deg]"], 45.0))
                 self.viewplane_RA = hlp.parse_dictionary_or_return_default(input, ["camera", "view_plane", "aspect_ratio"], 2.0)
@@ -290,35 +292,189 @@ class view_plane:
         self.ground_num_lines  = len(self.ground_lines)
         self.lines2D = np.full((self.ground_num_lines * 3, 2), None, dtype=object)
 
-
 class HUD:
-    def __init__(self,json_data,ax,camera):
-        color = json_data["color"]
+    def __init__(self,ax,camera):
+        color = "black"
         box_background_color = 'lightgrey'
         dx = camera.dx
         dy = camera.dy
+        # Offsets for the small HUD boxes (Option A).
+        # You can tweak these after creating HUD, e.g. `hud.heading_box_offset = np.array([0.02*dx, 0.0])`
+        # They are in axis data units (same units as dx/dy used below).
+        self.altitude_box_offset = np.array([0.0, 0.0])
+        self.heading_box_offset  = np.array([0.0, 0.3])
         # Altitude
-        self.altitude_minor = TickerTape(ax,color,'vertical',0.4*dy,10, 100,0.40*dx, -0.02*dx)
-        self.altitude_major = TickerTape(ax,color,'vertical',0.4*dy,1 ,1000,0.40*dx, -0.05*dx,True,0.01*dx,-0.02*dy)
-        ax.fill([0.4*dx, 0.42*dx, 0.5*dx, 0.5*dx, 0.42*dx, 0.4*dx],[0.0, 0.05*dy,0.05*dy, -0.05*dy, -0.05*dy,0.0],facecolor=box_background_color,edgecolor=color,linewidth=1,zorder=100)
-        self.altitude_box = ax.text(0.415*dx, -0.02*dy,str("{:0.0f}".format(0.0)), color=color,zorder=101)
+        self.altitude_minor = TickerTape(ax,color,'vertical',0.35*dy,10, 100,0.40*dx, -0.02*dx, perp_offset=0.4*dx)
+        self.altitude_major = TickerTape(ax,color,'vertical',0.4*dy,1 ,1000,0.40*dx, -0.05*dx,True,0.01*dx,-0.02*dy, perp_offset=0.4*dx)
+        # apply altitude offset
+        a_ox, a_oy = self.altitude_box_offset
+        alt_x = np.array([0.4*dx, 0.42*dx, 0.5*dx, 0.5*dx, 0.42*dx, 0.4*dx]) + a_ox
+        alt_y = np.array([0.0, 0.05*dy,0.05*dy, -0.05*dy, -0.05*dy,0.0]) + a_oy
+        ax.fill(alt_x.tolist(), alt_y.tolist(), facecolor=box_background_color,edgecolor=color,linewidth=1,zorder=100)
+        self.altitude_box = ax.text(0.415*dx + a_ox, -0.02*dy + a_oy, str("{:0.0f}".format(0.0)), color=color,zorder=101)
         # Heading
-        self.heading_minor = TickerTape(ax,color,'horizontal',0.2*dx,4, 5,-0.48*dy, 0.02*dy)
-        self.heading_major = TickerTape(ax,color,'horizontal',0.2*dx,2,10,-0.48*dy, 0.05*dy,True,-0.03*dx,-0.03*dy)
-        ax.fill([0.0, -0.04*dx, -0.04*dx, 0.04*dx, 0.04*dx, 0.0],[-0.48*dy,-0.5*dy, -0.57*dy, -0.57*dy, -0.5*dy,-0.48*dy],facecolor=box_background_color,edgecolor=color,linewidth=1,zorder=100)
-        self.heading_box = ax.text(-0.03*dx, -0.55*dy, str("{:0.0f}".format(0.0)),color=color,zorder=101)    
+        # self.heading_minor = TickerTape(ax,color,'horizontal',0.2*dx,4, 5,-0.48*dy, 0.02*dy, perp_offset=-0.2*dy)
+        self.heading_major = TickerTape(ax,color,'horizontal',0.2*dx,2,10,-0.48*dy, 0.05*dy,True,-0.03*dx,-0.03*dy, perp_offset=-0.2*dy)
+        # apply heading offset
+        h_ox, h_oy = self.heading_box_offset
+        head_x = np.array([0.0, -0.04*dx, -0.04*dx, 0.04*dx, 0.04*dx, 0.0]) + h_ox
+        head_y = np.array([-0.48*dy,-0.5*dy, -0.57*dy, -0.57*dy, -0.5*dy,-0.48*dy]) + h_oy
+        ax.fill(head_x.tolist(), head_y.tolist(), facecolor=box_background_color,edgecolor=color,linewidth=1,zorder=100)
+        self.heading_box = ax.text(-0.03*dx + h_ox+0.05, -0.5*dy + h_oy -0.05, str("{:0.0f}".format(0.0)),color=color,zorder=101)    
 
-    def draw(self, camera, state):
+    def draw(self, camera, euler):
         dx = camera.dx
         dy = camera.dy
         # Altitude Ticker
-        self.altitude_minor.update(-state.location[2])
-        self.altitude_major.update(-state.location[2])
-        self.altitude_box.set_text(str("{:0.0f}".format(-state.location[2])))
+        self.altitude_minor.update(-camera.camera_location_xyz[2])
+        self.altitude_major.update(-camera.camera_location_xyz[2])
+        self.altitude_box.set_text(str("{:0.0f}".format(-camera.camera_location_xyz[2])))
         # Heading Ticker
-        self.heading_minor.update(state.eul[2]*180.0/np.pi)
-        self.heading_major.update(state.eul[2]*180.0/np.pi,True)
-        self.heading_box.set_text(str("{:0.0f}".format(state.eul[2]*180.0/np.pi)))
+        # self.heading_minor.update(euler[2]*180.0/np.pi)
+        self.heading_major.update(euler[2]*180.0/np.pi,True)
+        self.heading_box.set_text(str("{:0.0f}".format(euler[2]*180.0/np.pi)))
+
+class TickerTape:
+    def __init__(self, ax, color,orientation,display_length,tick_spacing_display,tick_value_increment,x_pos, y_pos,major=False,label_dx=0.0,label_dy=0.0, perp_offset=0.0):
+        """
+        ax: Matplotlib axes where everything is drawn
+        color: tick and text color
+        orientation: 'vertical' or 'horizontal'
+        display_length: physical length of scrolling window (in axis units)
+        tick_spacing_display: distance between tick marks on screen
+        tick_value_increment: real-world units represented per tick spacing
+        x_pos, y_pos: anchor point where the tape is drawn
+        major: if True, draw longer ticks + labels
+        label_dx, label_dy: label offset from tick marks
+        """
+        self.ax = ax
+        self.color = color
+        self.orientation = orientation
+        self.display_length = display_length
+        # How far apart tick marks are (in screen units)
+        self.tick_spacing_display = tick_spacing_display
+        # Numerical increment between tick values
+        self.tick_value_increment = tick_value_increment
+        # Position on screen where the tape is anchored
+        self.x_pos = x_pos
+        self.y_pos = y_pos
+        # Major tick control
+        self.major = major
+        self.label_dx = label_dx
+        self.label_dy = label_dy
+        # Perpendicular offset (axis data units): for horizontal tapes this
+        # shifts the tape in Y; for vertical tapes it shifts the tape in X.
+        # Can be changed after construction (e.g. `hud.heading_minor.perp_offset = 0.02*dx`).
+        self.perp_offset = perp_offset
+        # A list of matplotlib line and text objects
+        self.tick_lines = []
+        self.tick_labels = []
+        # The most recent real-world value (altitude or heading)
+        self.current_value = 0.0
+        self._init_graphics()
+
+    def _init_graphics(self):
+        """Create the initial set of ticks visible in the display region."""
+        # Normalize `tick_spacing_display` into an effective spacing in axis
+        # units. If the caller passed a large integer (e.g. 4 or 10) while
+        # `display_length` is a small axis fraction (e.g. 0.2*dx), assume the
+        # integer was intended as a number of ticks and convert it to spacing.
+        if self.tick_spacing_display > self.display_length:
+            # treat tick_spacing_display as a tick count
+            tick_count = int(self.tick_spacing_display) if self.tick_spacing_display > 0 else 1
+            self._spacing_display = max(self.display_length / tick_count, 1e-6)
+        else:
+            self._spacing_display = self.tick_spacing_display
+        # Compute a starting anchor centered in the axes. The exact anchor is
+        # recomputed each update so dynamic axis changes are handled; this
+        # initial computation avoids a None state before the first update.
+        if self.orientation == 'horizontal':
+            xlim = self.ax.get_xlim()
+            # center of the axes in data units
+            self.x_pos = 0.5 * (xlim[0] + xlim[1])
+            ylim = self.ax.get_ylim()
+            self.y_pos = 0.5 * (ylim[0] + ylim[1]) + self.perp_offset
+        else:
+            ylim = self.ax.get_ylim()
+            self.y_pos = 0.5 * (ylim[0] + ylim[1])
+            xlim = self.ax.get_xlim()
+            self.x_pos = 0.5 * (xlim[0] + xlim[1]) + self.perp_offset
+        # draw ticks dynamically in update() so they can scroll and
+        # appear/disappear at the display edges. Start with empty
+        self.tick_lines = []
+        self.tick_labels = []
+        # half span of visible area
+        self._half_span = 0.5 * self.display_length
+
+    def update(self, new_value, update_labels=False):
+        """
+        Shift the ticker tape so that the tick corresponding to new_value
+        appears centered in the box region.
+        """
+        self.current_value = new_value
+        # Recompute center anchors each update so the tape stays centered when
+        # the axes change size or limits and so `perp_offset` can be changed
+        # at runtime and immediately observed.
+        if self.orientation == 'horizontal':
+            xlim = self.ax.get_xlim()
+            self.x_pos = 0.5 * (xlim[0] + xlim[1])
+            ylim = self.ax.get_ylim()
+            self.y_pos = 0.5 * (ylim[0] + ylim[1]) + self.perp_offset
+        else:
+            ylim = self.ax.get_ylim()
+            self.y_pos = 0.5 * (ylim[0] + ylim[1])
+            xlim = self.ax.get_xlim()
+            self.x_pos = 0.5 * (xlim[0] + xlim[1]) + self.perp_offset
+        # Compute how far the tape should shift in display units so that the
+        # tick corresponding to `new_value` is centered. This mirrors the
+        # original behavior where `shift_ticks = new_value / tick_value_increment`.
+        shift_ticks = new_value / float(self.tick_value_increment) if self.tick_value_increment != 0 else 0.0
+        shift_display = shift_ticks * self._spacing_display
+        # Remove old tick artists
+        for ln in self.tick_lines:
+            try:
+                ln.remove()
+            except Exception:
+                pass
+        for lbl in self.tick_labels:
+            try:
+                lbl.remove()
+            except Exception:
+                pass
+        self.tick_lines = []
+        self.tick_labels = []
+        # Compute which integer tick indices (m) produce positions inside the
+        # visible half-span: |m*spacing - shift_display| <= half_span
+        spacing = self._spacing_display
+        half = self._half_span
+        if spacing <= 0:
+            return
+        m_min = int(np.floor((shift_display - half) / spacing))
+        m_max = int(np.ceil((shift_display + half) / spacing))
+        # Draw the ticks that fall inside the visible region. Label value for
+        # tick index m is m * tick_value_increment (see derivation in notes).
+        for m in range(m_min, m_max + 1):
+            pos_offset = m * spacing - shift_display
+            if self.orientation == 'vertical':
+                x0 = self.x_pos
+                x1 = self.x_pos + (0.01 if self.major else 0.005)
+                y = self.y_pos + pos_offset
+                line = self.ax.plot([x0, x1], [y, y], color=self.color, linewidth=1)[0]
+                self.tick_lines.append(line)
+                if self.major:
+                    label_value = m * self.tick_value_increment
+                    label = self.ax.text(x1 + self.label_dx, y + self.label_dy, str(int(round(label_value))), color=self.color, ha='left', va='center')
+                    self.tick_labels.append(label)
+            else:
+                y0 = self.y_pos
+                y1 = self.y_pos - (0.01 if self.major else 0.005)
+                x = self.x_pos + pos_offset
+                line = self.ax.plot([x, x], [y0, y1], color=self.color, linewidth=1)[0]
+                self.tick_lines.append(line)
+                if self.major:
+                    label_value = m * self.tick_value_increment
+                    label = self.ax.text(x + self.label_dx, y1 + self.label_dy, str(int(round(label_value))), color=self.color, ha='center', va='top')
+                    self.tick_labels.append(label)
 
 if __name__ == "__main__":
     np.set_printoptions(formatter={'float': lambda x: f"{x:.12g}"})
@@ -437,7 +593,9 @@ if __name__ == "__main__":
         viewplane_object.ground_line, = ax.plot([], [], color=viewplane_object.ground_grid_color)
         viewplane_object.vehicle_line, = ax.plot([], [], color='black')  # or any color
         ax.set_xlim(viewplane_object.x_2D_corners[0], viewplane_object.x_2D_corners[2])
+        viewplane_object.dx = viewplane_object.x_2D_corners[2]-viewplane_object.x_2D_corners[0]
         ax.set_ylim(viewplane_object.y_2D_corners[1], viewplane_object.y_2D_corners[0])
+        viewplane_object.dy = viewplane_object.y_2D_corners[0]-viewplane_object.y_2D_corners[1]
         ax.set_xticks([]); ax.set_yticks([])
         ax.set_aspect('equal')
         # Draw ground
@@ -445,6 +603,10 @@ if __name__ == "__main__":
         viewplane_object.plot_viewplane_in_2D(lambda_array,viewplane_object.ground_points,viewplane_object.ground_lines,viewplane_object.ground_num_lines,ground_xy_projected_on_viewplane,viewplane_object.lines2D,line_type = viewplane_object.ground_line)
         # Draw vehicle
         viewplane_object.plot_viewplane_in_2D(lambda_vehicle_array,viewplane_object.vehicle_points,viewplane_object.vehicle_lines,viewplane_object.vehicle_num_lines,vehicle_xy_projected_on_viewplane,viewplane_object.vehicle_lines2D,line_type = viewplane_object.vehicle_line)
+        # ax_HUD = fig.add_subplot(111)
+        hud = HUD(ax, viewplane_object)
+        # hud.ax = ax_HUD
+        hud.draw(viewplane_object, [0.0,0.0,0.0])
         # plt.show()
         dt = 0.001
         max_da_rad = 0.375246
@@ -488,6 +650,7 @@ if __name__ == "__main__":
             Controls[3] = np.clip(get_commanded(error_vel_P, error_vel_I, error_vel_D, taupilot, desiredVelocity, True), 0.0, max_tau)
             Controls_sent = controls_connection.send(Controls)
             # print(states)
+            hud.draw(viewplane_object, phiThetaPsi)
             # viewplane_object.vehicle_location_xyz[:] = states[7:10]
             viewplane_object.camera_location_xyz[:] = states[7:10] #+ viewplane_object.original_camera_location_xyz
             viewplane_object.camera_quaternion[:] = states[10:14]
