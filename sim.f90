@@ -801,6 +801,7 @@ module sim_m
         real :: CL1, CL, CS, CD, Cll, Cm, Cn 
         real :: sa, ca, sb, cb
         real :: Z, T, P, rho, a, mu
+        real :: CL_newt, CD_newt, Cm_newt
         ahat = 0.0
         !!!! receive controls from python script here !!!!
         da = controls(1)
