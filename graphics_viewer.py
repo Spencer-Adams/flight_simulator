@@ -632,7 +632,8 @@ if __name__ == "__main__":
             depilot = Controls[1]
             drpilot = Controls[2]
             taupilot = 0.0#Controls[3]
-
+            alpha = np.arctan2(states[3], states[1])
+            desiredElevationAngle = alpha
             # --- OUTER LOOP: bank and elevation angle PID - produces roll_rate_command and pitch_rate_command (setpoints for inner loop)
             integral_bank_angle, error_bank_angle, error_bank_P, error_bank_I, error_bank_D = get_errors(dt, desiredBankAngle, phiThetaPsi[0], P_bankAngle, I_bankAngle, D_bankAngle, integral_bank_angle, error_bank_angle)
             integral_elevation_angle, error_elevation_angle, error_elevation_P, error_elevation_I, error_elevation_D = get_errors(dt, desiredElevationAngle,phiThetaPsi[1],P_elevationAngle,I_elevationAngle,D_elevationAngle,integral_elevation_angle,error_elevation_angle)
@@ -665,5 +666,5 @@ if __name__ == "__main__":
             time_end = time.time()
             dt = time_end-time_start
             fps = 1/(dt)
-            # print("      update hz = ", fps)
-            print("        aileron = ", np.round(Controls[0]*180/np.pi,2), " elevator = ", np.round(Controls[1]*180/np.pi,2), " rudder = ", np.round(Controls[2]*180/np.pi,2), " throttle = ", np.round(Controls[3],2), "update hz = ", np.round(fps,3), " velocity: ", np.round(states[1],3))
+            print("      update hz = ", np.round(fps,3), " alpha  = ", np.round(np.rad2deg(alpha),3))
+            # print("        aileron = ", np.round(Controls[0]*180/np.pi,2), " elevator = ", np.round(Controls[1]*180/np.pi,2), " rudder = ", np.round(Controls[2]*180/np.pi,2), " throttle = ", np.round(Controls[3],2), "update hz = ", np.round(fps,3), " velocity: ", np.round(states[1],3))

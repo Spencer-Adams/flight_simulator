@@ -18,6 +18,7 @@ module sim_m
     real :: controls(4)
     real :: controls_from_connect(4)
     real :: V_initial, alpha_initial, beta_initial
+    real :: Alt_initial 
     real :: rho0,Z_temp,T_temp,P_temp,a_temp,mu_temp
     real :: trim_state(13)
     logical :: rk4_verbose, is_trim_sideslip_angle, is_use_controls, is_use_controller
@@ -26,6 +27,11 @@ module sim_m
     real, allocatable :: rollRateControl(:), bankAngleControl(:)
     real, allocatable :: pitchRateControl(:), elevationAngleControl(:)
     real, allocatable :: yawRateControl(:), velocityControl(:)
+    real :: lambda_CL, lambda_CD, lambda_Cm
+    real :: alpha_0CL, alpha_sCL
+    real :: alpha_0CD, alpha_sCD
+    real :: alpha_0Cm, alpha_sCm, Cmmin
+    logical :: include_stall
 
     type(connection) :: graphics, connect_controls 
     type(json_value), pointer :: j_main
@@ -213,7 +219,6 @@ module sim_m
         ! call get_command_argument(1,filename)
         call std_atm_English(0.0,Z_temp,T_temp,P_temp,rho0,a_temp,mu_temp)
 
-
         call jsonx_load(filename,j_main)
         ! simulation
         call jsonx_get(j_main, "simulation.time_step[sec]", dt, 0.0)
@@ -282,6 +287,7 @@ module sim_m
         call jsonx_get(j_main, "initial.airspeed[ft/sec]", V_initial)
         call jsonx_get(j_main, "initial.altitude[ft]", y_init(9))
         y_init(9) = - y_init(9)
+        Alt_initial = y_init(9)
         call jsonx_get(j_main, "initial.Euler_angles[deg]", eul0,0.0,3)
         eul0 = eul0*PI/180.0
         y_init(10:13) = euler_to_quat(eul0)
@@ -415,6 +421,36 @@ module sim_m
             y_init(4:6) = trim_array(3:5)
             controls(1:4) = trim_array(6:9) 
         end if
+        ! Stall Stuff 
+        call jsonx_get(j_main, "vehicle.aerodynamics.stall.include_stall", include_stall)
+        call jsonx_get(j_main, "vehicle.aerodynamics.stall.CL.alpha_0[deg]", alpha_0CL)
+        call jsonx_get(j_main, "vehicle.aerodynamics.stall.CL.alpha_s[deg]", alpha_sCL)
+        call jsonx_get(j_main, "vehicle.aerodynamics.stall.CL.lambda_b", lambda_CL)
+        write(*,*) "Is Include Stall? ", include_stall
+        write(*,*) "alpha_0CL", alpha_0CL
+        write(*,*) "alpha_sCL", alpha_sCL
+        write(*,*) "lambda_CL", lambda_CL
+        alpha_0CL = alpha_0CL*PI/180.0
+        alpha_sCL = alpha_sCL*PI/180.0
+        call jsonx_get(j_main, "vehicle.aerodynamics.stall.CD.alpha_0[deg]", alpha_0CD)
+        call jsonx_get(j_main, "vehicle.aerodynamics.stall.CD.alpha_s[deg]", alpha_sCD)
+        call jsonx_get(j_main, "vehicle.aerodynamics.stall.CD.lambda_b", lambda_CD)
+        write(*,*) "alpha_0CD", alpha_0CD
+        write(*,*) "alpha_sCD", alpha_sCD
+        write(*,*) "lambda_CD", lambda_CD
+        alpha_0CD = alpha_0CD*PI/180.0
+        alpha_sCD = alpha_sCD*PI/180.0
+
+        call jsonx_get(j_main, "vehicle.aerodynamics.stall.Cm.min", Cmmin)
+        call jsonx_get(j_main, "vehicle.aerodynamics.stall.Cm.alpha_0[deg]", alpha_0Cm)
+        call jsonx_get(j_main, "vehicle.aerodynamics.stall.Cm.alpha_s[deg]", alpha_sCm)
+        call jsonx_get(j_main, "vehicle.aerodynamics.stall.Cm.lambda_b", lambda_Cm)
+        write(*,*) "Cm min ", Cmmin
+        write(*,*) "alpha_0Cm", alpha_0Cm
+        write(*,*) "alpha_sCm", alpha_sCm
+        write(*,*) "lambda_Cm", lambda_Cm
+        alpha_0Cm = alpha_0Cm*PI/180.0
+        alpha_sCm = alpha_sCm*PI/180.0
         ! controller stuff 
         call jsonx_get(j_main, "controller.is_use_controller", is_use_controller)
         call jsonx_get(j_main, "controller.rollRateControl", rollRateControl,0.0,4)
@@ -429,6 +465,7 @@ module sim_m
         call graphics%init(j_graphics)
         call jsonx_get(j_connections, 'controls', j_controls)
         call connect_controls%init(j_controls)
+        call print_aero_table()
     end subroutine init
 
     function trim_algorithm(H_altitude, newton_tol) result(trim_result)
@@ -799,9 +836,11 @@ module sim_m
         real :: da, de, dr, tau
         real :: V, alpha, beta, pbar, qbar, rbar, ahat
         real :: CL1, CL, CS, CD, Cll, Cm, Cn 
-        real :: sa, ca, sb, cb
+        real :: sa, ca, sb, cb, sign_a
         real :: Z, T, P, rho, a, mu
+        real :: exp_pos, exp_neg, sigma
         real :: CL_newt, CD_newt, Cm_newt
+        real :: CL1_blended, CD1_blended, Cm1_blended
         ahat = 0.0
         !!!! receive controls from python script here !!!!
         da = controls(1)
@@ -823,6 +862,12 @@ module sim_m
         qbar = 0.5*y(5)*long_ref/(V)
         rbar = 0.5*y(6)*lat_ref/(V)
 
+        sa = sin(alpha)
+        ca = cos(alpha)
+        sb = sin(beta)
+        cb = cos(beta)
+        sign_a = sign(1.0, alpha)
+
         CL1 = CL0 +CLa*alpha
         CL = CL1 + CLqbar*qbar+CLahat*ahat + CLde*de
         CS = CSb*beta + (CSpbar+CSapbar*alpha)*pbar + CSrbar*rbar + CSda*da + CSdr*dr
@@ -830,10 +875,28 @@ module sim_m
         Cll = Clb*beta + Clpbar*pbar + (Clrbar + Clarbar*alpha)*rbar + Clda*da + Cldr*dr
         Cm = Cm0 + Cma*alpha + Cmqbar*qbar + Cmahat*ahat + Cmde*de 
         Cn = Cnb*beta + (Cnpbar + Cnapbar*alpha)*pbar + Cnrbar*rbar + (Cnda + Cnada*alpha)*da + Cndr*dr
-        sa = sin(alpha)
-        ca = cos(alpha)
-        sb = sin(beta)
-        cb = cos(beta)
+        
+        if (include_stall) then
+            ! CL 
+            CL_newt = 2.0*sign_a*sa*sa*ca
+            exp_pos = exp( lambda_CL*(alpha-alpha_0CL+alpha_sCL))
+            exp_neg = exp(-lambda_CL*(alpha-alpha_0CL-alpha_sCL))
+            sigma = (1.0 + exp_neg + exp_pos)/((1.0 + exp_neg)*(1.0 + exp_pos))
+            CL = (1.0-sigma)*CL + sigma*CL_newt
+            ! CD 
+            CD_newt = 2.0*sin(abs(alpha))**3
+            exp_pos = exp( lambda_CD*(alpha-alpha_0CD+alpha_sCD))
+            exp_neg = exp(-lambda_CD*(alpha-alpha_0CD-alpha_sCD))
+            sigma = (1.0 + exp_neg + exp_pos)/((1.0 + exp_neg)*(1.0 + exp_pos))
+            CD = (1.0-sigma)*CD + sigma*CD_newt
+            ! Cm
+            Cm_newt = Cmmin*sign_a*sa*sa
+            exp_pos = exp( lambda_Cm*(alpha-alpha_0Cm+alpha_sCm))
+            exp_neg = exp(-lambda_Cm*(alpha-alpha_0Cm-alpha_sCm))
+            sigma = (1.0 + exp_neg + exp_pos)/((1.0 + exp_neg)*(1.0 + exp_pos))
+            Cm = (1.0-sigma)*Cm + sigma*Cm_newt
+        end if 
+
         FM(1) = CL*sa-CS*ca*sb-CD*ca*cb
         FM(2) = CS*cb-CD*sb
         FM(3) = -CL*ca-CS*sa*sb-CD*sa*cb
@@ -849,50 +912,66 @@ module sim_m
         end if
     end subroutine pseudo_aero
 
-    ! subroutine get_errors(controllerP, controllerI, controllerD, dt, desired_value, & 
-    !     actual_value, gainP, gainI, gainD, integral, error) 
-    !     implicit none 
-    !     real, intent(inout) :: integral, error
-    !     real, intent(inout) :: controllerP, controllerI, controllerD
-    !     real, intent(in) :: desired_value, actual_value
-    !     real, intent(in) :: gainP, gainI, gainD, dt
-    !     real :: newError 
-    !     newError = desired_value - actual_value
-    !     controllerP = gainP*newError
-    !     integral = integral + 0.5 * (newError + error) * dt
+    subroutine print_aero_table()
+        implicit none 
+        integer :: i, iunit 
+        real :: alpha, beta, states(13)
+        real :: N_force, Y_force, A_force 
+        real :: controls_original(4)
+        real :: ca, cb, sa, sb 
+        real :: CL, CD, Cm 
+        real :: Z, T, P, rho, a, mu, const 
+        write(*,*) "Starting to print aero tables"
+        write(*,*) "Starting to print aero tables"
+        write(*,*) "Starting to print aero tables"
+        write(*,*) "Starting to print aero tables"
 
-    !     if (integral > 0.5) then
-    !         integral = 0.5
-    !     else if (integral <-0.5) then 
-    !         integral = -0.5
-    !     end if
+        call std_atm_English(Alt_initial, Z, T, P, rho, a, mu)
+        const = 0.5*rho*V_initial**2*sref 
 
-    !     controllerI = gainI * integral 
-    !     controllerD = gainD * (newError-error)/dt
-    !     error = newError
-    ! end subroutine get_errors
+        controls_original = controls
+        controls = 0.0
+        states = 0.0
 
-    ! subroutine get_command_deflect(controllerP, controllerI, controllerD, dt, desired_value, & 
-    !     actual_value, gainP, gainI, gainD, integral, error) 
-    !     implicit none 
-    !     real, intent(inout) :: integral, error
-    !     real, intent(inout) :: controllerP, controllerI, controllerD
-    !     real, intent(in) :: desired_value, actual_value
-    !     real, intent(in) :: gainP, gainI, gainD, dt
-    !     real :: newError 
-    !     newError = desired_value - actual_value
-    !     controllerP = gainP*newError
-    !     integral = integral + 0.5 * (newError + error) * dt
+        open(newunit=iunit, file='aerotable.csv', status = 'REPLACE')
+        write(iunit,*) 'alpha[deg],CL,CD,Cm'
+        beta = 0.0
+        do i=-180,180,1
+            alpha = real(i)*PI/180.0
+            beta = 0.0
 
-    !     if (integral > 0.5) then
-    !         integral = 0.5
-    !     else if (integral <-0.5) then 
-    !         integral = -0.5
-    !     end if
-    !     controllerI = gainI * integral 
-    !     controllerD = gainD * (newError-error)/dt
-    !     error = newError
-    ! end subroutine get_command_deflect
+            states(1) = V_initial*cos(alpha)
+            states(2) = V_initial*sin(beta)
+            states(3) = V_initial*sin(alpha)
+            states(9) = -Alt_initial
+
+            call pseudo_aero(states)
+            A_force = -FM(1)
+            Y_force =  FM(2)
+            N_force = -FM(3)
+
+            ca = cos(alpha)
+            cb = cos(beta)
+            sa = sin(alpha)
+            sb = sin(beta)
+            
+            CL = N_force*ca - A_force*sa 
+            CD = A_force*ca*cb - Y_force*sb + N_force*sa*cb 
+            Cm = FM(5)
+            
+            CL = CL/const 
+            CD = CD/const 
+            Cm = Cm/const/long_ref
+            write(iunit,*) alpha*180.0/PI, ',',CL,',',CD,',',Cm
+        end do 
+        close(iunit)
+        write(*,*) "SUCCESFULLY PRINTED AERO TABLES TO aerotable.csv"
+        write(*,*) "SUCCESFULLY PRINTED AERO TABLES TO aerotable.csv"
+        write(*,*) "SUCCESFULLY PRINTED AERO TABLES TO aerotable.csv"
+        write(*,*) "SUCCESFULLY PRINTED AERO TABLES TO aerotable.csv"
+        write(*,*) "SUCCESFULLY PRINTED AERO TABLES TO aerotable.csv"
+        controls = controls_original
+    end subroutine print_aero_table
 
 
 end module sim_m

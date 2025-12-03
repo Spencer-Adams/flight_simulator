@@ -35,7 +35,7 @@
         "ground" : {
                 "altitude[ft]" : 0.0,
                 "grid_number" : 10,
-                "grid_scale[ft]" : 550.0,
+                "grid_scale[ft]" : 1000.0,
                 "color" : "gray"
         },
         "vehicle" : {
@@ -52,6 +52,6 @@
         "pitchRateControl" : [0.0, -0.41887902, -1.22173048, -0.000296706],
         "elevationAngleControl" : [0.0, 2.2, 0.0, 0.1],
         "yawRateControl" : [0.0, -0.8981317, -3.945, -0.000296706],
-        "velocityControl" : [500.0, 0.1, 0.001, 0.0]
+        "velocityControl" : [400.0, 0.1, 0.001, 0.0]
     }
 }
