@@ -1,7 +1,7 @@
 {
     "simulation": {
         "time_step[sec]": 0.0,
-        "end_time[sec]": 35.0,
+        "end_time[sec]": 45.0,
         "rk4_verbose" : false
     },
     "connections" : {
@@ -130,7 +130,7 @@
     },
     "initial": {
         "airspeed[ft/sec]" : 350.0,
-        "altitude[ft]" : 2000.0,
+        "altitude[ft]" : 3000.0,
         "Euler_angles[deg]" : [0.0,0.0,0.0],
         "type" : "trim",
         "state" : {

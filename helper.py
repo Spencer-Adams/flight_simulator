@@ -40,15 +40,6 @@ def euler_to_quat(euler):
     return quat
 
 def quat_to_euler(quat): 
-    # print("quat")
-    # print("quat")
-    # print("quat")
-    # print("quat")
-    # print(quat)
-    # print("quat")
-    # print("quat")
-    # print("quat")
-    # print("quat")
     e0 = quat[0]
     ex = quat[1]
     ey = quat[2]

@@ -7,6 +7,7 @@ import json
 import helper as hlp # type: ignore
 import time # type: ignore
 from controller import get_errors, get_commanded
+import matplotlib as mpl
 
 class view_plane:
     """"""
@@ -301,41 +302,73 @@ class HUD:
         # Offsets for the small HUD boxes (Option A).
         # You can tweak these after creating HUD, e.g. `hud.heading_box_offset = np.array([0.02*dx, 0.0])`
         # They are in axis data units (same units as dx/dy used below).
-        self.altitude_box_offset = np.array([0.0, 0.0])
-        self.heading_box_offset  = np.array([0.0, 0.3])
+        self.altitude_box_offset = np.array([-0.2*dx, 0.0])
+        self.velocity_box_offset = np.array([-0.61*dx, 0.0])
+        self.heading_box_offset  = np.array([0.0, 0.27*dy])
+        self.pilot_controls_box_offset = np.array([-0.4*dx, 0.0*dy])
+        self.final_controls_box_offset = np.array([-0.4*dx, -0.1*dy])
         # Altitude
-        self.altitude_minor = TickerTape(ax,color,'vertical',0.35*dy,10, 100,0.40*dx, -0.02*dx, perp_offset=0.4*dx)
-        self.altitude_major = TickerTape(ax,color,'vertical',0.4*dy,1 ,1000,0.40*dx, -0.05*dx,True,0.01*dx,-0.02*dy, perp_offset=0.4*dx)
+        self.altitude_minor = TickerTape(ax,color,'vertical', 0.35*dy,10,100,0.40*dx, -0.02*dx, True, perp_offset=0.2*dx, int_divid_by=500)
         # apply altitude offset
         a_ox, a_oy = self.altitude_box_offset
         alt_x = np.array([0.4*dx, 0.42*dx, 0.5*dx, 0.5*dx, 0.42*dx, 0.4*dx]) + a_ox
-        alt_y = np.array([0.0, 0.05*dy,0.05*dy, -0.05*dy, -0.05*dy,0.0]) + a_oy
+        alt_y = np.array([0.0, 0.03*dy,0.03*dy, -0.03*dy, -0.03*dy,0.0]) + a_oy
         ax.fill(alt_x.tolist(), alt_y.tolist(), facecolor=box_background_color,edgecolor=color,linewidth=1,zorder=100)
         self.altitude_box = ax.text(0.415*dx + a_ox, -0.02*dy + a_oy, str("{:0.0f}".format(0.0)), color=color,zorder=101)
+        # Velocity
+        self.velocity_minor = TickerTape(ax,color,'vertical', 0.35*dy,5,25,0.30*dx, -0.02*dx, True, label_dx=-0.02*dx, perp_offset=-0.21*dx, int_divid_by=50)
+        # apply velocity offset
+        v_ox, v_oy = self.velocity_box_offset
+        vel_x = np.array([0.3*dx, 0.3*dx, 0.38*dx,0.4*dx, 0.38*dx]) + v_ox
+        vel_y = np.array([0.03*dy, -0.03*dy, -0.03*dy,0.0, 0.03*dy]) + v_oy
+        ax.fill(vel_x.tolist(), vel_y.tolist(), facecolor=box_background_color,edgecolor=color,linewidth=1,zorder=100)
+        self.velocity_box = ax.text(0.315*dx + v_ox, -0.02*dy + v_oy, str("{:0.0f}".format(0.0)), color=color,zorder=101)
         # Heading
-        # self.heading_minor = TickerTape(ax,color,'horizontal',0.2*dx,4, 5,-0.48*dy, 0.02*dy, perp_offset=-0.2*dy)
-        self.heading_major = TickerTape(ax,color,'horizontal',0.2*dx,2,10,-0.48*dy, 0.05*dy,True,-0.03*dx,-0.03*dy, perp_offset=-0.2*dy)
+        # self.heading_major = TickerTape(ax,color,'horizontal',0.2*dx,2,10,-0.48*dy, 0.05*dy,True,-0.03*dx,-0.03*dy, perp_offset=-0.2*dy)
+        self.heading_major = TickerTape(ax,color,'horizontal',0.2*dx,2,2.5,-0.48*dy, 0.05*dy,True, perp_offset=-0.2*dy, int_divid_by = 5)
         # apply heading offset
         h_ox, h_oy = self.heading_box_offset
-        head_x = np.array([0.0, -0.04*dx, -0.04*dx, 0.04*dx, 0.04*dx, 0.0]) + h_ox
+        head_x = np.array([0.0, -0.02*dx, -0.02*dx, 0.02*dx, 0.02*dx, 0.0]) + h_ox # these are the coord
         head_y = np.array([-0.48*dy,-0.5*dy, -0.57*dy, -0.57*dy, -0.5*dy,-0.48*dy]) + h_oy
         ax.fill(head_x.tolist(), head_y.tolist(), facecolor=box_background_color,edgecolor=color,linewidth=1,zorder=100)
-        self.heading_box = ax.text(-0.03*dx + h_ox+0.05, -0.5*dy + h_oy -0.05, str("{:0.0f}".format(0.0)),color=color,zorder=101)    
+        self.heading_box = ax.text(-0.03*dx + h_ox+0.08, -0.5*dy + h_oy -0.05, str("{:0.0f}".format(0.0)),color=color,zorder=101)    
+        # Pilot Controls Position
+        p_ox, p_oy = self.pilot_controls_box_offset
+        # pilot_x = np.array([-0.02*dx, -0.02*dx, 0.1*dx, 0.1*dx]) + p_ox
+        # pilot_y = np.array([0.39*dy, 0.45*dy, 0.45*dy, 0.39*dy]) + p_oy
+        # ax.fill(pilot_x.tolist(), pilot_y.tolist(), facecolor=box_background_color,edgecolor=color,linewidth=1,zorder=100)
+        self.pilot_controls_box = ax.text(-0.015*dx + p_ox, 0.405*dy + p_oy, str("{:0.4f}".format(0.0)), color=color,zorder=101)
+        # Final Controls Position
+        f_ox, f_oy = self.final_controls_box_offset
+        # final_x = np.array([-0.02*dx, -0.02*dx, 0.1*dx, 0.1*dx]) + f_ox
+        # final_y = np.array([0.39*dy, 0.45*dy, 0.45*dy, 0.39*dy]) + f_oy
+        # ax.fill(final_x.tolist(), final_y.tolist(), facecolor=box_background_color,edgecolor=color,linewidth=1,zorder=100)
+        self.final_controls_box = ax.text(-0.015*dx + f_ox, 0.405*dy + f_oy, str("{:0.4f}".format(0.0)), color=color,zorder=101)
 
-    def draw(self, camera, euler):
+    def draw(self, camera, euler, u_velocity, pilot_controls, final_controls):
         dx = camera.dx
         dy = camera.dy
         # Altitude Ticker
         self.altitude_minor.update(-camera.camera_location_xyz[2])
-        self.altitude_major.update(-camera.camera_location_xyz[2])
         self.altitude_box.set_text(str("{:0.0f}".format(-camera.camera_location_xyz[2])))
+        # Velocity Ticker 
+        self.velocity_minor.update(u_velocity)
+        self.velocity_box.set_text(str("{:0.0f}".format(u_velocity)))
         # Heading Ticker
         # self.heading_minor.update(euler[2]*180.0/np.pi)
         self.heading_major.update(euler[2]*180.0/np.pi,True)
         self.heading_box.set_text(str("{:0.0f}".format(euler[2]*180.0/np.pi)))
+        # Pilot Controls Position using the first 3 elements of pilot_controls
+        pd = np.rad2deg(pilot_controls[:3])
+        pd_str = ", ".join(f"{x:0.4f}" for x in pd)
+        self.pilot_controls_box.set_text("da de dr pilot = " + pd_str)
+        # Final Controls Position (first 3 elements)
+        fd = np.rad2deg(final_controls[:3])
+        fd_str = ", ".join(f"{x:0.4f}" for x in fd)
+        self.final_controls_box.set_text("da de dr final = " + fd_str)
 
 class TickerTape:
-    def __init__(self, ax, color,orientation,display_length,tick_spacing_display,tick_value_increment,x_pos, y_pos,major=False,label_dx=0.0,label_dy=0.0, perp_offset=0.0):
+    def __init__(self, ax, color,orientation,display_length,tick_spacing_display,tick_value_increment,x_pos, y_pos,major=False,label_dx=0.0,label_dy=0.0, perp_offset=0.0, int_divid_by = 1000):
         """
         ax: Matplotlib axes where everything is drawn
         color: tick and text color
@@ -347,6 +380,7 @@ class TickerTape:
         major: if True, draw longer ticks + labels
         label_dx, label_dy: label offset from tick marks
         """
+        self.int_divid_by = int_divid_by
         self.ax = ax
         self.color = color
         self.orientation = orientation
@@ -463,8 +497,11 @@ class TickerTape:
                 self.tick_lines.append(line)
                 if self.major:
                     label_value = m * self.tick_value_increment
-                    label = self.ax.text(x1 + self.label_dx, y + self.label_dy, str(int(round(label_value))), color=self.color, ha='left', va='center')
-                    self.tick_labels.append(label)
+                    if label_value % self.int_divid_by == 0:
+                        # align label based on label_dx sign: positive => left, negative => right
+                        ha = 'left' if self.label_dx >= 0 else 'right'
+                        label = self.ax.text(x1 + self.label_dx, y + self.label_dy, str(int(round(label_value))), color=self.color, ha=ha, va='center')
+                        self.tick_labels.append(label)
             else:
                 y0 = self.y_pos
                 y1 = self.y_pos - (0.01 if self.major else 0.005)
@@ -473,10 +510,13 @@ class TickerTape:
                 self.tick_lines.append(line)
                 if self.major:
                     label_value = m * self.tick_value_increment
-                    label = self.ax.text(x + self.label_dx, y1 + self.label_dy, str(int(round(label_value))), color=self.color, ha='center', va='top')
-                    self.tick_labels.append(label)
+                    if label_value % self.int_divid_by == 0:
+                        label = self.ax.text(x + self.label_dx, y1 + self.label_dy, str(int(round(label_value))), color=self.color, ha='center', va='top')
+                        self.tick_labels.append(label)
 
 if __name__ == "__main__":
+    mpl.rcParams['font.weight'] = 'bold'
+    mpl.rcParams['axes.labelweight'] = 'bold'
     np.set_printoptions(formatter={'float': lambda x: f"{x:.12g}"})
     print_stuff = False
     plot_stuff = True
@@ -606,13 +646,22 @@ if __name__ == "__main__":
         # ax_HUD = fig.add_subplot(111)
         hud = HUD(ax, viewplane_object)
         # hud.ax = ax_HUD
-        hud.draw(viewplane_object, [0.0,0.0,0.0])
+        hud.draw(viewplane_object, [0.0,0.0,0.0], 0.0, [0.0,0.0,0.0,0.0], [0.0,0.0,0.0,0.0])
         # plt.show()
         dt = 0.001
         max_da_rad = 0.375246
         max_de_rad = 0.436332
         max_dr_rad = 0.523599
         max_tau = 1.0
+        Controls = np.zeros(4)
+        # At top of loop (or once before loop)
+        plot_viewplane = viewplane_object.plot_viewplane_in_2D
+        calc_l_ca_array = viewplane_object.calc_l_ca_array
+        calc_lambda_array = viewplane_object.calc_lambda_array
+        calc_xy_projection = viewplane_object.calc_xy_projection_onto_viewplane
+        send_states = states_connection.recv
+        send_controls = controls_connection.send
+        calc_lambda_numerator = viewplane_object.calc_lambda_numerator
         while(frame<1000.0):
             time_start = time.time()
             states = states_connection.recv()
@@ -622,12 +671,10 @@ if __name__ == "__main__":
             # viewplane_object.plot_viewplane_in_2D(lambda_vehicle_array, viewplane_object.vehicle_points, viewplane_object.vehicle_lines, viewplane_object.vehicle_num_lines, vehicle_xy_projected_on_viewplane, viewplane_object.vehicle_lines2D)
             fig.canvas.draw()
             fig.canvas.flush_events() ####
-            Controls = np.array([
-                np.round(-joy.get_axis(2)**3*max_da_rad,1),  #### da -> val * 21.5 * Pi/180
-                np.round(-joy.get_axis(3)**3*max_de_rad,1), #### de -> val * 25.0 * Pi/180
-                np.round(joy.get_axis(0)**3*max_dr_rad,1),  #### dr -> val * 30.0 * Pi/180
-                np.round(-0.5*joy.get_axis(1)+0.5,1), ### # tau -> val * -0.5 + 0.5 so that joystick goes from 0 to 1 when deflected from bottom to top
-            ])
+            Controls[0] = np.round(-joy.get_axis(2)**3*max_da_rad,1)
+            Controls[1] = np.round(-joy.get_axis(3)**3*max_de_rad,1)
+            Controls[2] = np.round(joy.get_axis(0)**3*max_dr_rad,1)
+            Controls[3] = np.round(-0.5*joy.get_axis(1)+0.5,1)
             dapilot = Controls[0]
             depilot = Controls[1]
             drpilot = Controls[2]
@@ -651,20 +698,20 @@ if __name__ == "__main__":
             Controls[3] = np.clip(get_commanded(error_vel_P, error_vel_I, error_vel_D, taupilot, desiredVelocity, True), 0.0, max_tau)
             Controls_sent = controls_connection.send(Controls)
             # print(states)
-            hud.draw(viewplane_object, phiThetaPsi)
+            hud.draw(viewplane_object, phiThetaPsi, states[1], [dapilot, depilot, drpilot, taupilot], Controls)
             # viewplane_object.vehicle_location_xyz[:] = states[7:10]
             viewplane_object.camera_location_xyz[:] = states[7:10] #+ viewplane_object.original_camera_location_xyz
             viewplane_object.camera_quaternion[:] = states[10:14]
             viewplane_object.camera_set_state(viewplane_object.camera_location_xyz, viewplane_object.camera_quaternion)
             viewplane_object.calc_ground_grid()
-            l_ca_array = viewplane_object.calc_l_ca_array(viewplane_object.ground_points)
+            l_ca_array = calc_l_ca_array(viewplane_object.ground_points)
             # l_ca_vehicle_array = viewplane_object.calc_l_ca_array(viewplane_object.vehicle_points)
-            viewplane_object.calc_lambda_numerator()
-            lambda_array = viewplane_object.calc_lambda_array(l_ca_array)
+            calc_lambda_numerator()
+            lambda_array = calc_lambda_array(l_ca_array)
             # lambda_vehicle_array = viewplane_object.calc_lambda_array(l_ca_vehicle_array)
-            ground_xy_projected_on_viewplane = viewplane_object.calc_xy_projection_onto_viewplane(l_ca_array, lambda_array)
+            ground_xy_projected_on_viewplane = calc_xy_projection(l_ca_array, lambda_array)
             time_end = time.time()
             dt = time_end-time_start
             fps = 1/(dt)
             print("      update hz = ", np.round(fps,3), " alpha  = ", np.round(np.rad2deg(alpha),3))
-            # print("        aileron = ", np.round(Controls[0]*180/np.pi,2), " elevator = ", np.round(Controls[1]*180/np.pi,2), " rudder = ", np.round(Controls[2]*180/np.pi,2), " throttle = ", np.round(Controls[3],2), "update hz = ", np.round(fps,3), " velocity: ", np.round(states[1],3))
+            # print("        aileron = ", np.round(Controls[0]*180/np.pi,2), " elevator = ", np.round(Controls[1]*180/np.pi,2), " rudder = ", np.round(Controls[2]*180/np.pi,2), " throttle = ", np.round(Controls[3],2), "update hz = ", np.round(fps,3), " velocity: ", np.round(states[1],3), " desired V", np.round(desiredVelocity,1))
